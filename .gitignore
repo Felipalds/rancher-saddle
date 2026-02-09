@@ -1,0 +1,56 @@
+# Binaries
+go-kubernetes-helper
+forge
+main
+
+# Build artifacts
+build/
+clusters/
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+
+# Log files
+logs/
+*.log
+
+# Configuration files with secrets
+config.json
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Go specific
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+
+# Dependency directories
+vendor/
+
+# Temporary files
+*.tmp
+*.temp
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# SSH keys
+*.pem
+*.key
+id_rsa*
