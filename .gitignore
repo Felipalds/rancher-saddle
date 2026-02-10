@@ -1,6 +1,5 @@
 # Binaries
 go-kubernetes-helper
-forge
 main
 
 # Build artifacts
@@ -16,7 +15,8 @@ logs/
 *.log
 
 # Configuration files with secrets
-config.json
+config.yaml
+clusters.yaml
 
 # IDE and editor files
 .vscode/

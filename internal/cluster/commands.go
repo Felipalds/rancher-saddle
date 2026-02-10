@@ -11,19 +11,19 @@ import (
 
 	"github.com/Felipalds/go-kubernetes-helper/internal/config"
 	"github.com/Felipalds/go-kubernetes-helper/internal/core"
-	"github.com/Felipalds/go-kubernetes-helper/internal/model"
 	"github.com/Felipalds/go-kubernetes-helper/internal/workflow"
 )
 
+const defaultConfigPath = "config.yaml"
+
 // ListClusters displays all clusters in a table format
 func ListClusters() error {
-	store, err := NewStore()
+	cfg, err := config.LoadClustersConfig(defaultConfigPath)
 	if err != nil {
-		return fmt.Errorf("failed to initialize cluster store: %w", err)
+		return fmt.Errorf("failed to load config: %w", err)
 	}
 
-	clusters := store.List()
-	if len(clusters) == 0 {
+	if len(cfg.Clusters) == 0 {
 		fmt.Println("No clusters found.")
 		fmt.Println("\nUse 'go-kubernetes-helper create' to create a new cluster.")
 		return nil
@@ -34,18 +34,29 @@ func ListClusters() error {
 	fmt.Fprintln(w, "NAME\tSTATUS\tNODES\tREGION\tCREATED\tRANCHER URL")
 	fmt.Fprintln(w, strings.Repeat("-", 80))
 
-	for _, cluster := range clusters {
+	for name, cluster := range cfg.Clusters {
 		age := formatAge(cluster.CreatedAt)
-		nodeCount := cluster.Config.InstanceCount
-		region := cluster.Config.AWSRegion
+		nodeCount := cluster.Cluster.InstanceCount
+
+		// Get region from provider config
+		region := "-"
+		if r, ok := cluster.Provider.Config["region"].(string); ok {
+			region = r
+		}
+
 		rancherURL := cluster.RancherURL
 		if rancherURL == "" {
 			rancherURL = "-"
 		}
 
+		status := cluster.Status
+		if status == "" {
+			status = "unknown"
+		}
+
 		fmt.Fprintf(w, "%s\t%s\t%d\t%s\t%s\t%s\n",
-			cluster.Name,
-			cluster.Status,
+			name,
+			status,
 			nodeCount,
 			region,
 			age,
@@ -57,130 +68,130 @@ func ListClusters() error {
 	return nil
 }
 
-// CreateCluster creates a new cluster with the given configuration
-func CreateCluster(name string, config *model.Config) error {
-	store, err := NewStore()
+// CreateClusterNew creates a new cluster using the modular architecture
+func CreateClusterNew(name string, cfg *config.Config, registry *core.Registry) error {
+	// Load clusters config file
+	clustersCfg, err := config.LoadClustersConfig(defaultConfigPath)
 	if err != nil {
-		return fmt.Errorf("failed to initialize cluster store: %w", err)
+		return fmt.Errorf("failed to load config: %w", err)
 	}
 
 	// Check if cluster already exists
-	if _, err := store.Get(name); err == nil {
+	if _, exists := clustersCfg.GetCluster(name); exists {
 		return fmt.Errorf("cluster '%s' already exists", name)
 	}
 
-	// Create cluster state
-	buildDir := filepath.Join("clusters", name)
-	cluster := &ClusterState{
-		Name:     name,
-		Status:   StatusCreating,
-		Config:   config,
-		BuildDir: buildDir,
-	}
+	// Create cluster config entry
+	clusterCfg := config.FromModernConfig(cfg)
+	clusterCfg.Status = "creating"
+	clusterCfg.BuildDir = filepath.Join("clusters", name)
 
-	// Add to store
-	if err := store.Add(cluster); err != nil {
-		return fmt.Errorf("failed to save cluster state: %w", err)
+	// Add to config
+	clustersCfg.AddCluster(name, clusterCfg)
+
+	// Save config
+	if err := clustersCfg.Save(defaultConfigPath); err != nil {
+		return fmt.Errorf("failed to save config: %w", err)
 	}
 
 	fmt.Printf("Creating cluster '%s'...\n", name)
 
-	// Run the deployment workflow
-	runner, err := workflow.NewRunner(config)
-	if err != nil {
-		cluster.Status = StatusFailed
-		store.Update(cluster)
-		return fmt.Errorf("failed to initialize workflow: %w", err)
-	}
-
-	if err := runner.RunWithBuildDir(buildDir); err != nil {
-		cluster.Status = StatusFailed
-		store.Update(cluster)
-		return fmt.Errorf("deployment failed: %w", err)
-	}
-
-	// Update cluster state with deployment info
-	ips, _ := runner.GetTofuOutput(buildDir, "instance_ips")
-	dnsNames, _ := runner.GetTofuOutput(buildDir, "instance_dns_names")
-
-	cluster.Status = StatusRunning
-	cluster.InstanceIPs = ips
-	cluster.InstanceDNS = dnsNames
-	if len(dnsNames) > 0 {
-		cluster.RancherURL = fmt.Sprintf("https://%s/dashboard", dnsNames[0])
-	}
-
-	if err := store.Update(cluster); err != nil {
-		return fmt.Errorf("failed to update cluster state: %w", err)
-	}
-
-	fmt.Printf("\n✓ Cluster '%s' created successfully!\n", name)
-	return nil
-}
-
-// CreateClusterNew creates a new cluster using the modular architecture
-func CreateClusterNew(name string, cfg *config.Config, registry *core.Registry) error {
-	store, err := NewStore()
-	if err != nil {
-		return fmt.Errorf("failed to initialize cluster store: %w", err)
-	}
-
-	// Check if cluster already exists
-	if _, err := store.Get(name); err == nil {
-		return fmt.Errorf("cluster '%s' already exists", name)
-	}
-
-	// Create cluster state (we'll need to adapt the ClusterState struct later)
+	// Create build directory
 	buildDir := filepath.Join("clusters", name)
+	if err := os.MkdirAll(buildDir, 0755); err != nil {
+		return fmt.Errorf("failed to create build directory: %w", err)
+	}
 
-	fmt.Printf("Creating cluster '%s' with provider=%s, orchestrator=%s...\n",
-		name, cfg.Provider, cfg.Orchestrator)
-
-	// Run the deployment workflow with new modular runner
+	// Run deployment workflow
 	runner, err := workflow.NewModularRunner(cfg, registry)
 	if err != nil {
-		return fmt.Errorf("failed to initialize workflow: %w", err)
+		return fmt.Errorf("failed to create workflow runner: %w", err)
 	}
-
 	if err := runner.RunWithBuildDir(buildDir); err != nil {
+		// Update status to failed
+		clusterCfg.Status = "failed"
+		clustersCfg.AddCluster(name, clusterCfg)
+		clustersCfg.Save(defaultConfigPath)
 		return fmt.Errorf("deployment failed: %w", err)
 	}
 
+	// Get infrastructure outputs
+	provider, err := registry.GetProvider(cfg.GetProviderType())
+	if err != nil {
+		return fmt.Errorf("failed to get provider: %w", err)
+	}
+
+	outputs, err := provider.GetOutputs(nil, buildDir)
+	if err != nil {
+		fmt.Printf("Warning: failed to get infrastructure outputs: %v\n", err)
+	} else {
+		clusterCfg.InstanceIPs = outputs.InstanceIPs
+		clusterCfg.InstanceDNS = outputs.InstanceDNSNames
+
+		// Set Rancher URL
+		if len(outputs.InstanceDNSNames) > 0 {
+			clusterCfg.RancherURL = fmt.Sprintf("https://%s/dashboard", outputs.InstanceDNSNames[0])
+		} else if len(outputs.InstanceIPs) > 0 {
+			clusterCfg.RancherURL = fmt.Sprintf("https://%s/dashboard", outputs.InstanceIPs[0])
+		}
+	}
+
+	// Update status to running
+	clusterCfg.Status = "running"
+	clustersCfg.AddCluster(name, clusterCfg)
+
+	// Save final config
+	if err := clustersCfg.Save(defaultConfigPath); err != nil {
+		return fmt.Errorf("failed to save final config: %w", err)
+	}
+
 	fmt.Printf("\n✓ Cluster '%s' created successfully!\n", name)
+	if clusterCfg.RancherURL != "" {
+		fmt.Printf("Rancher URL: %s\n", clusterCfg.RancherURL)
+	}
+
 	return nil
 }
 
-// DeleteCluster deletes a cluster and all its resources
+// DeleteCluster deletes a cluster and its resources
 func DeleteCluster(name string, force bool) error {
-	store, err := NewStore()
+	// Load clusters config
+	cfg, err := config.LoadClustersConfig(defaultConfigPath)
 	if err != nil {
-		return fmt.Errorf("failed to initialize cluster store: %w", err)
+		return fmt.Errorf("failed to load config: %w", err)
 	}
 
-	cluster, err := store.Get(name)
-	if err != nil {
-		return err
+	// Check if cluster exists
+	cluster, exists := cfg.GetCluster(name)
+	if !exists {
+		return fmt.Errorf("cluster '%s' not found", name)
 	}
 
+	// Confirm deletion
 	if !force {
 		fmt.Printf("Are you sure you want to delete cluster '%s'? (yes/no): ", name)
 		var response string
 		fmt.Scanln(&response)
-		if strings.ToLower(response) != "yes" {
+		if response != "yes" {
 			fmt.Println("Deletion cancelled.")
 			return nil
 		}
 	}
 
-	// Update status to deleting
-	cluster.Status = StatusDeleting
-	store.Update(cluster)
-
 	fmt.Printf("Deleting cluster '%s'...\n", name)
 
-	// Run tofu destroy
+	// Update status to deleting
+	cluster.Status = "deleting"
+	cfg.AddCluster(name, cluster)
+	cfg.Save(defaultConfigPath)
+
+	// Destroy infrastructure
 	buildDir := cluster.BuildDir
-	if _, err := os.Stat(buildDir); err == nil {
+	if buildDir == "" {
+		buildDir = filepath.Join("clusters", name)
+	}
+
+	if _, err := os.Stat(buildDir); !os.IsNotExist(err) {
 		fmt.Println("Destroying infrastructure...")
 		cmd := exec.Command("tofu", "destroy", "-auto-approve")
 		cmd.Dir = buildDir
@@ -188,40 +199,45 @@ func DeleteCluster(name string, force bool) error {
 		cmd.Stderr = os.Stderr
 
 		if err := cmd.Run(); err != nil {
-			fmt.Printf("Warning: Failed to destroy infrastructure: %v\n", err)
+			fmt.Printf("Warning: failed to destroy infrastructure: %v\n", err)
 			fmt.Println("You may need to manually clean up AWS resources.")
 		}
 
 		// Remove build directory
 		fmt.Println("Removing build directory...")
 		if err := os.RemoveAll(buildDir); err != nil {
-			fmt.Printf("Warning: Failed to remove build directory: %v\n", err)
+			fmt.Printf("Warning: failed to remove build directory: %v\n", err)
 		}
 	}
 
-	// Remove from store
-	if err := store.Delete(name); err != nil {
-		return fmt.Errorf("failed to remove cluster from store: %w", err)
+	// Remove from config
+	cfg.DeleteCluster(name)
+
+	// Save config
+	if err := cfg.Save(defaultConfigPath); err != nil {
+		return fmt.Errorf("failed to save config: %w", err)
 	}
 
 	fmt.Printf("✓ Cluster '%s' deleted successfully!\n", name)
 	return nil
 }
 
-// formatAge returns a human-readable time duration
+// formatAge converts a time to a human-readable age string
 func formatAge(t time.Time) string {
-	duration := time.Since(t)
-	if duration < time.Minute {
-		return "just now"
+	if t.IsZero() {
+		return "-"
 	}
-	if duration < time.Hour {
+
+	duration := time.Since(t)
+	hours := int(duration.Hours())
+
+	if hours < 1 {
 		minutes := int(duration.Minutes())
 		return fmt.Sprintf("%dm", minutes)
-	}
-	if duration < 24*time.Hour {
-		hours := int(duration.Hours())
+	} else if hours < 24 {
 		return fmt.Sprintf("%dh", hours)
+	} else {
+		days := hours / 24
+		return fmt.Sprintf("%dd", days)
 	}
-	days := int(duration.Hours() / 24)
-	return fmt.Sprintf("%dd", days)
 }

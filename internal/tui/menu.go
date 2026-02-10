@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Felipalds/go-kubernetes-helper/internal/cluster"
+	"github.com/Felipalds/go-kubernetes-helper/internal/config"
 	"github.com/Felipalds/go-kubernetes-helper/internal/model"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -127,16 +127,12 @@ type DeleteMenuModel struct {
 }
 
 func NewDeleteMenuModel() (DeleteMenuModel, error) {
-	store, err := cluster.NewStore()
+	cfg, err := config.LoadClustersConfig("config.yaml")
 	if err != nil {
 		return DeleteMenuModel{}, err
 	}
 
-	clusterList := store.List()
-	names := make([]string, len(clusterList))
-	for i, c := range clusterList {
-		names[i] = c.Name
-	}
+	names := cfg.ListClusters()
 
 	return DeleteMenuModel{
 		clusters: names,
