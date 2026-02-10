@@ -1,0 +1,29 @@
+- name: Initialize K3s on First Node
+  hosts: init
+  become: yes
+  vars:
+    k3s_version: "{{.K3sVersion}}"
+
+  tasks:
+{{.InitTasks}}
+
+- name: Join K3s Nodes
+  hosts: join
+  become: yes
+  vars:
+    k3s_version: "{{.K3sVersion}}"
+    token: "{{ "{{" }} hostvars[groups['init'][0]]['k3s_token'] {{ "}}" }}"
+    server_url: "{{ "{{" }} hostvars[groups['init'][0]]['k3s_url'] {{ "}}" }}"
+
+  tasks:
+{{.JoinTasks}}
+{{if .DeployRancher}}
+- name: Deploy Rancher Management Server
+  hosts: init
+  become: yes
+  vars:
+    rancher_version: "{{.RancherVersion}}"
+
+  tasks:
+{{.AddonTasks}}
+{{end}}

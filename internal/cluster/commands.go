@@ -9,6 +9,8 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/Felipalds/go-kubernetes-helper/internal/config"
+	"github.com/Felipalds/go-kubernetes-helper/internal/core"
 	"github.com/Felipalds/go-kubernetes-helper/internal/model"
 	"github.com/Felipalds/go-kubernetes-helper/internal/workflow"
 )
@@ -110,6 +112,38 @@ func CreateCluster(name string, config *model.Config) error {
 
 	if err := store.Update(cluster); err != nil {
 		return fmt.Errorf("failed to update cluster state: %w", err)
+	}
+
+	fmt.Printf("\n✓ Cluster '%s' created successfully!\n", name)
+	return nil
+}
+
+// CreateClusterNew creates a new cluster using the modular architecture
+func CreateClusterNew(name string, cfg *config.Config, registry *core.Registry) error {
+	store, err := NewStore()
+	if err != nil {
+		return fmt.Errorf("failed to initialize cluster store: %w", err)
+	}
+
+	// Check if cluster already exists
+	if _, err := store.Get(name); err == nil {
+		return fmt.Errorf("cluster '%s' already exists", name)
+	}
+
+	// Create cluster state (we'll need to adapt the ClusterState struct later)
+	buildDir := filepath.Join("clusters", name)
+
+	fmt.Printf("Creating cluster '%s' with provider=%s, orchestrator=%s...\n",
+		name, cfg.Provider, cfg.Orchestrator)
+
+	// Run the deployment workflow with new modular runner
+	runner, err := workflow.NewModularRunner(cfg, registry)
+	if err != nil {
+		return fmt.Errorf("failed to initialize workflow: %w", err)
+	}
+
+	if err := runner.RunWithBuildDir(buildDir); err != nil {
+		return fmt.Errorf("deployment failed: %w", err)
 	}
 
 	fmt.Printf("\n✓ Cluster '%s' created successfully!\n", name)

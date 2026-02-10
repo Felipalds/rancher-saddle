@@ -29,12 +29,24 @@ type Model struct {
 	config     *model.Config
 	done       bool
 	quitting   bool
+
+	// NEW: For distribution selection
+	distributionCursor int  // 0=RKE2, 1=K3s
+	selectingDistribution bool  // True when in distribution selection mode
 }
 
 func NewModel(cfg *model.Config) Model {
+	// Initialize distribution cursor based on config
+	distCursor := 0
+	if cfg.KubernetesDistribution == "k3s" {
+		distCursor = 1
+	}
+
 	m := Model{
-		inputs: make([]textinput.Model, 13),
+		inputs: make([]textinput.Model, 14), // Increased to 14 for version field
 		config: cfg,
+		distributionCursor: distCursor,
+		selectingDistribution: false,
 	}
 
 	for i := range m.inputs {
@@ -107,10 +119,24 @@ func NewModel(cfg *model.Config) Model {
 				return nil
 			}
 		case 11:
-			t.Prompt = "RKE2 Version: "
-			t.Placeholder = "v1.x.x"
-			t.SetValue(cfg.RKE2Version)
+			// Kubernetes Distribution (display only, use left/right arrows to select)
+			t.Prompt = ""
+			t.Placeholder = "Use ← → to select"
+			t.SetValue(cfg.KubernetesDistribution)
 		case 12:
+			// Kubernetes Version (dynamic based on distribution)
+			distName := "Kubernetes"
+			if cfg.KubernetesDistribution == "rke2" {
+				distName = "RKE2"
+			} else if cfg.KubernetesDistribution == "k3s" {
+				distName = "K3s"
+			}
+			t.Prompt = fmt.Sprintf("%s Version: ", distName)
+			t.Placeholder = getVersionPlaceholder(cfg.KubernetesDistribution)
+			t.SetValue(cfg.KubernetesVersion)
+			t.CharLimit = 30
+		case 13:
+			// Rancher Version
 			t.Prompt = "Rancher Version: "
 			t.Placeholder = "2.x.x"
 			t.SetValue(cfg.RancherVersion)
@@ -134,6 +160,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.quitting = true
 			return m, tea.Quit
 
+		// Handle distribution selection when focused on field 11 (use left/right arrows)
+		case "left", "right":
+			if m.focusIndex == 11 {
+				if msg.String() == "left" && m.distributionCursor > 0 {
+					m.distributionCursor--
+					m.updateDistribution()
+				} else if msg.String() == "right" && m.distributionCursor < 1 {
+					m.distributionCursor++
+					m.updateDistribution()
+				}
+				return m, nil
+			}
+
 		// Change focus
 		case "tab", "shift+tab", "enter", "up", "down":
 			s := msg.String()
@@ -145,7 +184,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, tea.Quit
 			}
 
-			// Cycle indexes
+			// Navigation (works everywhere including distribution selector)
 			if s == "up" || s == "shift+tab" {
 				m.focusIndex--
 			} else {
@@ -206,12 +245,29 @@ func (m Model) View() string {
 
 	b.WriteString("Forge Config\n\n")
 
-	for i := range m.inputs {
+	// Render fields 0-10 normally
+	for i := 0; i <= 10; i++ {
 		b.WriteString(m.inputs[i].View())
-		if i < len(m.inputs)-1 {
-			b.WriteRune('\n')
-		}
+		b.WriteRune('\n')
 	}
+
+	// Field 11: Kubernetes Distribution (special rendering)
+	if m.focusIndex == 11 {
+		b.WriteString(focusedStyle.Render("Kubernetes Distribution:"))
+		b.WriteString("\n")
+		b.WriteString(renderDistributionSelector(m.distributionCursor, true))
+	} else {
+		b.WriteString(noStyle.Render("Kubernetes Distribution:"))
+		b.WriteString("\n")
+		b.WriteString(renderDistributionSelector(m.distributionCursor, false))
+	}
+
+	// Field 12: Kubernetes Version
+	b.WriteString(m.inputs[12].View())
+	b.WriteRune('\n')
+
+	// Field 13: Rancher Version
+	b.WriteString(m.inputs[13].View())
 
 	button := &blurredButton
 	if m.focusIndex == len(m.inputs) {
@@ -219,9 +275,12 @@ func (m Model) View() string {
 	}
 	fmt.Fprintf(&b, "\n\n%s\n\n", *button)
 
-	b.WriteString(helpStyle.Render("cursor mode is "))
-	b.WriteString(cursorModeHelpStyle.Render(m.inputs[0].Cursor.Mode().String()))
-	b.WriteString(helpStyle.Render(" (ctrl+r to change style)"))
+	// Show context-sensitive help
+	if m.focusIndex == 11 {
+		b.WriteString(helpStyle.Render("Use ← → arrows to select distribution • tab/enter to continue"))
+	} else {
+		b.WriteString(helpStyle.Render("tab/enter: next • shift+tab/↑: prev • ctrl+c: quit"))
+	}
 
 	return b.String()
 }
@@ -245,8 +304,88 @@ func (m *Model) updateConfig() {
 		m.config.RootVolumeSize = i
 	}
 
-	m.config.RKE2Version = m.inputs[11].Value()
-	m.config.RancherVersion = m.inputs[12].Value()
+	// Use the selected distribution and version
+	distributions := []string{"rke2", "k3s"}
+	m.config.KubernetesDistribution = distributions[m.distributionCursor]
+	m.config.KubernetesVersion = m.inputs[12].Value()
+
+	// Set default version if empty
+	if m.config.KubernetesVersion == "" {
+		if m.config.KubernetesDistribution == "rke2" {
+			m.config.KubernetesVersion = "v1.33.7+rke2r1"
+		} else if m.config.KubernetesDistribution == "k3s" {
+			m.config.KubernetesVersion = "v1.30.3+k3s1"
+		}
+	}
+
+	m.config.RancherVersion = m.inputs[13].Value()
+
+	// Backward compatibility: set RKE2Version if distribution is RKE2
+	if m.config.KubernetesDistribution == "rke2" {
+		m.config.RKE2Version = m.config.KubernetesVersion
+	}
+}
+
+func (m *Model) updateDistribution() {
+	distributions := []string{"rke2", "k3s"}
+	selected := distributions[m.distributionCursor]
+
+	m.inputs[11].SetValue(selected)
+	m.config.KubernetesDistribution = selected
+
+	// Update version field prompt and placeholder
+	distName := "Kubernetes"
+	if selected == "rke2" {
+		distName = "RKE2"
+	} else if selected == "k3s" {
+		distName = "K3s"
+	}
+	m.inputs[12].Prompt = fmt.Sprintf("%s Version: ", distName)
+	m.inputs[12].Placeholder = getVersionPlaceholder(selected)
+
+	// Set default version when switching if not already set
+	if m.config.KubernetesVersion == "" ||
+		(selected == "rke2" && !strings.Contains(m.config.KubernetesVersion, "rke2")) ||
+		(selected == "k3s" && !strings.Contains(m.config.KubernetesVersion, "k3s")) {
+		if selected == "rke2" {
+			m.inputs[12].SetValue("v1.33.7+rke2r1")
+			m.config.KubernetesVersion = "v1.33.7+rke2r1"
+		} else {
+			m.inputs[12].SetValue("v1.30.3+k3s1")
+			m.config.KubernetesVersion = "v1.30.3+k3s1"
+		}
+	}
+}
+
+func renderDistributionSelector(cursor int, focused bool) string {
+	options := []string{"RKE2", "K3s"}
+	var b strings.Builder
+
+	for i, opt := range options {
+		if i == cursor {
+			if focused {
+				b.WriteString(focusedStyle.Render(fmt.Sprintf("▶ %s", opt)))
+			} else {
+				b.WriteString(noStyle.Render(fmt.Sprintf("▶ %s", opt)))
+			}
+		} else {
+			b.WriteString(noStyle.Render(fmt.Sprintf("  %s", opt)))
+		}
+		b.WriteString("\n")
+	}
+
+	return b.String()
+}
+
+func getVersionPlaceholder(distribution string) string {
+	switch distribution {
+	case "rke2":
+		return "e.g., v1.33.7+rke2r1"
+	case "k3s":
+		return "e.g., v1.30.3+k3s1"
+	default:
+		return "version"
+	}
 }
 
 func (m Model) Done() bool {

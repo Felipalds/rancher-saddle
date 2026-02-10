@@ -1,0 +1,16 @@
+- name: Wait for cloud-init
+  command: cloud-init status --wait
+  changed_when: false
+
+- name: Install K3s (Join)
+  shell: curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="{{ k3s_version }}" K3S_URL="{{ server_url }}" K3S_TOKEN="{{ token }}" sh -s - server
+  args:
+    creates: /usr/local/bin/k3s
+
+- name: Wait for node to join cluster
+  command: /usr/local/bin/k3s kubectl get nodes
+  register: nodes_check
+  until: nodes_check.rc == 0
+  retries: 30
+  delay: 10
+  changed_when: false

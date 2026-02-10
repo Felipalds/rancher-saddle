@@ -1,0 +1,29 @@
+- name: Initialize RKE2 on First Node
+  hosts: init
+  become: yes
+  vars:
+    rke2_version: "{{.RKE2Version}}"
+
+  tasks:
+{{.InitTasks}}
+
+- name: Join RKE2 Nodes
+  hosts: join
+  become: yes
+  vars:
+    rke2_version: "{{.RKE2Version}}"
+    token: "{{ "{{" }} hostvars[groups['init'][0]]['rke2_token'] {{ "}}" }}"
+    server_url: "{{ "{{" }} hostvars[groups['init'][0]]['rke2_url'] {{ "}}" }}"
+
+  tasks:
+{{.JoinTasks}}
+{{if .DeployRancher}}
+- name: Deploy Rancher Management Server
+  hosts: init
+  become: yes
+  vars:
+    rancher_version: "{{.RancherVersion}}"
+
+  tasks:
+{{.AddonTasks}}
+{{end}}

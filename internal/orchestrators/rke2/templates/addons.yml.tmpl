@@ -1,0 +1,76 @@
+- name: Install Helm
+  shell: curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 && chmod 700 get_helm.sh && ./get_helm.sh
+  args:
+    creates: /usr/local/bin/helm
+
+- name: Set up kubectl and kubeconfig for convenience
+  lineinfile:
+    path: /root/.bashrc
+    line: "{{ "{{" }} item {{ "}}" }}"
+  loop:
+    - 'export PATH=$PATH:/var/lib/rancher/rke2/bin'
+    - 'export KUBECONFIG=/etc/rancher/rke2/rke2.yaml'
+
+- name: Ensure .kube directory exists
+  file:
+    path: /root/.kube
+    state: directory
+    mode: '0755'
+
+- name: Make Kubeconfig available
+  copy:
+    src: /etc/rancher/rke2/rke2.yaml
+    dest: /root/.kube/config
+    remote_src: yes
+    mode: '0600'
+
+- name: Wait for RKE2 to be ready
+  command: /var/lib/rancher/rke2/bin/kubectl --kubeconfig /etc/rancher/rke2/rke2.yaml get nodes
+  register: result
+  until: result.rc == 0
+  retries: 30
+  delay: 10
+  changed_when: false
+
+- name: Install Cert-Manager
+  command: /var/lib/rancher/rke2/bin/kubectl --kubeconfig /etc/rancher/rke2/rke2.yaml apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.16.1/cert-manager.yaml
+
+- name: Wait for Cert-Manager Deployments
+  command: /var/lib/rancher/rke2/bin/kubectl --kubeconfig /etc/rancher/rke2/rke2.yaml wait --for=condition=Available deployment --all -n cert-manager --timeout=300s
+  changed_when: false
+
+- name: Wait for Cert-Manager Webhook Service
+  command: /var/lib/rancher/rke2/bin/kubectl --kubeconfig /etc/rancher/rke2/rke2.yaml get endpoints cert-manager-webhook -n cert-manager -o jsonpath='{.subsets[*].addresses[*].ip}'
+  register: webhook_endpoints
+  until: webhook_endpoints.stdout != ""
+  retries: 30
+  delay: 10
+  changed_when: false
+
+- name: Wait Additional Time for Webhook Registration
+  pause:
+    seconds: 30
+
+- name: Add Rancher Helm Repos
+  command: /usr/local/bin/helm repo add {{ "{{" }} item.name {{ "}}" }} {{ "{{" }} item.url {{ "}}" }}
+  loop:
+    - { name: 'rancher-latest', url: 'https://releases.rancher.com/server-charts/latest' }
+    - { name: 'jetstack', url: 'https://charts.jetstack.io' }
+
+- name: Update Helm Repos
+  command: /usr/local/bin/helm repo update
+
+- name: Create Cattle System Namespace
+  command: /var/lib/rancher/rke2/bin/kubectl --kubeconfig /etc/rancher/rke2/rke2.yaml create namespace cattle-system
+  ignore_errors: yes
+
+- name: Install or Upgrade Rancher
+  command: >
+    /usr/local/bin/helm upgrade --install rancher rancher-latest/rancher
+    --namespace cattle-system
+    --set hostname={{ "{{" }} rancher_hostname {{ "}}" }}
+    --set bootstrapPassword=admin
+    --set replicas=1
+    --version {{ "{{" }} rancher_version {{ "}}" }}
+    --kubeconfig /etc/rancher/rke2/rke2.yaml
+    --create-namespace
