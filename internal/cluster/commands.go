@@ -16,6 +16,34 @@ import (
 
 const defaultConfigPath = "config.yaml"
 
+// ANSI color codes for status indicators
+const (
+	colorReset  = "\033[0m"
+	colorGreen  = "\033[32m"
+	colorYellow = "\033[33m"
+	colorRed    = "\033[31m"
+	colorCyan   = "\033[36m"
+	colorGray   = "\033[90m"
+)
+
+// getStatusDisplay returns a color-coded status indicator
+func getStatusDisplay(status string) string {
+	switch status {
+	case "running":
+		return colorGreen + "● running" + colorReset
+	case "pending":
+		return colorYellow + "⚠ pending" + colorReset
+	case "failed":
+		return colorRed + "✗ failed" + colorReset
+	case "creating":
+		return colorCyan + "⟳ creating" + colorReset
+	case "deleting":
+		return colorGray + "◐ deleting" + colorReset
+	default:
+		return colorGray + "○ " + status + colorReset
+	}
+}
+
 // ListClusters displays all clusters in a table format
 func ListClusters() error {
 	cfg, err := config.LoadClustersConfig(defaultConfigPath)
@@ -56,7 +84,7 @@ func ListClusters() error {
 
 		fmt.Fprintf(w, "%s\t%s\t%d\t%s\t%s\t%s\n",
 			name,
-			status,
+			getStatusDisplay(status),
 			nodeCount,
 			region,
 			age,

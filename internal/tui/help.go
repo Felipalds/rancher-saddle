@@ -1,0 +1,115 @@
+package tui
+
+import (
+	"strings"
+
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+)
+
+// HelpModel represents the help overlay
+type HelpModel struct {
+	visible bool
+	width   int
+	height  int
+}
+
+// NewHelpModel creates a new help overlay
+func NewHelpModel() HelpModel {
+	return HelpModel{
+		visible: false,
+		width:   60,
+		height:  20,
+	}
+}
+
+// Toggle shows/hides the help overlay
+func (m *HelpModel) Toggle() {
+	m.visible = !m.visible
+}
+
+// IsVisible returns whether the help is currently displayed
+func (m HelpModel) IsVisible() bool {
+	return m.visible
+}
+
+// View renders the help overlay
+func (m HelpModel) View() string {
+	if !m.visible {
+		return ""
+	}
+
+	var s strings.Builder
+
+	// Styles
+	titleStyle := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("86")).
+		Align(lipgloss.Center).
+		Width(m.width - 4)
+
+	sectionStyle := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("205")).
+		MarginTop(1)
+
+	keyStyle := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("39"))
+
+	descStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("250"))
+
+	helpBoxStyle := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("62")).
+		Padding(1, 2).
+		Width(m.width).
+		Background(lipgloss.Color("235"))
+
+	// Build content
+	s.WriteString(titleStyle.Render("⌨  Keyboard Shortcuts") + "\n")
+
+	// Navigation section
+	s.WriteString(sectionStyle.Render("Navigation") + "\n")
+	s.WriteString(keyStyle.Render("  j/k, ↓/↑  ") + descStyle.Render("Move up/down") + "\n")
+	s.WriteString(keyStyle.Render("  1-3       ") + descStyle.Render("Quick jump to view") + "\n")
+	s.WriteString(keyStyle.Render("  enter     ") + descStyle.Render("Select/Open") + "\n")
+	s.WriteString(keyStyle.Render("  esc       ") + descStyle.Render("Back/Cancel") + "\n")
+
+	// Actions section
+	s.WriteString(sectionStyle.Render("Actions") + "\n")
+	s.WriteString(keyStyle.Render("  space     ") + descStyle.Render("Select item (multi-select)") + "\n")
+	s.WriteString(keyStyle.Render("  d         ") + descStyle.Render("Delete cluster") + "\n")
+	s.WriteString(keyStyle.Render("  l         ") + descStyle.Render("View logs") + "\n")
+	s.WriteString(keyStyle.Render("  r         ") + descStyle.Render("Refresh now") + "\n")
+	s.WriteString(keyStyle.Render("  q         ") + descStyle.Render("Quit/Exit") + "\n")
+
+	// Help section
+	s.WriteString(sectionStyle.Render("Help") + "\n")
+	s.WriteString(keyStyle.Render("  ?         ") + descStyle.Render("Toggle this help") + "\n")
+	s.WriteString(keyStyle.Render("  ctrl+c    ") + descStyle.Render("Force quit") + "\n")
+
+	s.WriteString("\n")
+	closeStyle := lipgloss.NewStyle().
+		Faint(true).
+		Foreground(lipgloss.Color("240")).
+		Align(lipgloss.Center).
+		Width(m.width - 4)
+	s.WriteString(closeStyle.Render("[press any key to close]") + "\n")
+
+	return helpBoxStyle.Render(s.String())
+}
+
+// Update handles help overlay events
+func (m HelpModel) Update(msg tea.Msg) (HelpModel, tea.Cmd) {
+	switch msg.(type) {
+	case tea.KeyMsg:
+		if m.visible {
+			// Close help on any key press
+			m.visible = false
+			return m, nil
+		}
+	}
+	return m, nil
+}

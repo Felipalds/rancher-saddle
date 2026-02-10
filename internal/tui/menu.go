@@ -25,20 +25,22 @@ type MenuModel struct {
 	selected MenuAction
 	done     bool
 	config   *model.Config
+	help     HelpModel
 }
 
 func NewMenuModel(cfg *model.Config) MenuModel {
 	return MenuModel{
 		choices: []string{
-			"📋 List Clusters",
-			"✨ Create New Cluster",
-			"🗑️  Delete Cluster",
-			"🚪 Exit",
+			"[1] 📋 List Clusters",
+			"[2] ✨ Create New Cluster",
+			"[3] 🗑️  Delete Cluster",
+			"[q] 🚪 Exit",
 		},
 		cursor:   0,
 		selected: -1,
 		done:     false,
 		config:   cfg,
+		help:     NewHelpModel(),
 	}
 }
 
@@ -47,6 +49,13 @@ func (m MenuModel) Init() tea.Cmd {
 }
 
 func (m MenuModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	// Handle help overlay first
+	if m.help.IsVisible() {
+		var cmd tea.Cmd
+		m.help, cmd = m.help.Update(msg)
+		return m, cmd
+	}
+
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
@@ -54,6 +63,10 @@ func (m MenuModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.done = true
 			m.selected = MenuExit
 			return m, tea.Quit
+
+		case "?":
+			m.help.Toggle()
+			return m, nil
 
 		case "up", "k":
 			if m.cursor > 0 {
@@ -67,6 +80,20 @@ func (m MenuModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case "enter":
 			m.selected = MenuAction(m.cursor)
+			m.done = true
+			return m, tea.Quit
+
+		// Numeric key navigation
+		case "1":
+			m.selected = MenuList
+			m.done = true
+			return m, tea.Quit
+		case "2":
+			m.selected = MenuCreate
+			m.done = true
+			return m, tea.Quit
+		case "3":
+			m.selected = MenuDelete
 			m.done = true
 			return m, tea.Quit
 		}
@@ -99,14 +126,29 @@ func (m MenuModel) View() string {
 	}
 
 	s.WriteString("\n")
-	s.WriteString(lipgloss.NewStyle().
+	helpStyle := lipgloss.NewStyle().
 		Faint(true).
-		Render("↑/↓: Navigate • Enter: Select • q/Esc: Exit"))
+		Foreground(lipgloss.Color("240"))
+	s.WriteString(helpStyle.Render("Navigation: ↑/↓ or j/k • Quick: 1-3 • Enter: Select • q: Quit • ?: Help"))
 	s.WriteString("\n")
 
-	return lipgloss.NewStyle().
+	menuView := lipgloss.NewStyle().
 		Padding(1, 2).
 		Render(s.String())
+
+	// Show help overlay if visible
+	if m.help.IsVisible() {
+		// Center the help overlay on top of the menu
+		helpView := m.help.View()
+		return lipgloss.Place(
+			80, 25,
+			lipgloss.Center, lipgloss.Center,
+			helpView,
+			lipgloss.WithWhitespaceChars(""),
+		)
+	}
+
+	return menuView
 }
 
 func (m MenuModel) Done() bool {
