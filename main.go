@@ -12,7 +12,6 @@ import (
 	"github.com/Felipalds/go-kubernetes-helper/internal/orchestrators/k3s"
 	"github.com/Felipalds/go-kubernetes-helper/internal/orchestrators/rke2"
 	"github.com/Felipalds/go-kubernetes-helper/internal/providers/aws"
-	"github.com/Felipalds/go-kubernetes-helper/internal/tui"
 	"github.com/spf13/cobra"
 )
 
@@ -35,118 +34,8 @@ func main() {
 		Short: "Automate Kubernetes cluster deployment on multiple cloud providers",
 		Long:  "A modular tool to automate the deployment and management of Kubernetes clusters across AWS, Azure, GCP, and vSphere using RKE2, K3s, Minikube, or Kubeadm",
 		Run: func(c *cobra.Command, args []string) {
-			// Load config for TUI
-			tuiCfg, err := model.LoadConfig(configPath)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
-				os.Exit(1)
-			}
-
-			// Menu loop
-			for {
-				// Show main menu
-				action, err := cmd.RunMenuTUI(tuiCfg)
-				if err != nil {
-					fmt.Fprintf(os.Stderr, "Error running menu: %v\n", err)
-					os.Exit(1)
-				}
-
-				switch action {
-				case tui.MenuList:
-					// List clusters
-					fmt.Println()
-					if err := cluster.ListClusters(); err != nil {
-						fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-					}
-					fmt.Println("\nPress Enter to continue...")
-					fmt.Scanln()
-
-				case tui.MenuCreate:
-					// Create cluster flow
-					submitted, err := cmd.RunTUI(tuiCfg)
-					if err != nil {
-						fmt.Fprintf(os.Stderr, "Error running TUI: %v\n", err)
-						os.Exit(1)
-					}
-
-					if !submitted {
-						fmt.Println("Cluster creation cancelled.")
-						continue
-					}
-
-					// Prompt for cluster name
-					name := clusterName
-					if len(args) > 0 {
-						name = args[0]
-					}
-					if name == "" {
-						fmt.Print("\nEnter cluster name: ")
-						fmt.Scanln(&name)
-						if name == "" {
-							fmt.Fprintf(os.Stderr, "Error: cluster name is required\n")
-							continue
-						}
-					}
-
-					// Convert to config format
-					cfg := config.FromLegacyConfig(tuiCfg)
-
-					// Validate with registry
-					if err := cfg.ValidateWithRegistry(core.GlobalRegistry); err != nil {
-						fmt.Fprintf(os.Stderr, "Configuration validation failed: %v\n", err)
-						fmt.Println("\nPress Enter to continue...")
-						fmt.Scanln()
-						continue
-					}
-
-					// Create cluster
-					if err := cluster.CreateClusterNew(name, cfg, core.GlobalRegistry); err != nil {
-						fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-						fmt.Println("\nPress Enter to continue...")
-						fmt.Scanln()
-						continue
-					}
-
-					fmt.Println("\nPress Enter to continue...")
-					fmt.Scanln()
-
-				case tui.MenuDelete:
-					// Delete cluster flow
-					clusterName, canceled, err := cmd.RunDeleteMenuTUI()
-					if err != nil {
-						fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-						fmt.Println("\nPress Enter to continue...")
-						fmt.Scanln()
-						continue
-					}
-
-					if canceled || clusterName == "" {
-						fmt.Println("Deletion cancelled.")
-						continue
-					}
-
-					// Confirm deletion
-					fmt.Printf("\nAre you sure you want to delete cluster '%s'? (yes/no): ", clusterName)
-					var response string
-					fmt.Scanln(&response)
-					if response != "yes" {
-						fmt.Println("Deletion cancelled.")
-						continue
-					}
-
-					// Delete cluster
-					if err := cluster.DeleteCluster(clusterName, true); err != nil {
-						fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-					}
-
-					fmt.Println("\nPress Enter to continue...")
-					fmt.Scanln()
-
-				case tui.MenuExit:
-					fmt.Println("Goodbye!")
-					return
-				}
-			}
+			// Launch the fullscreen TUI application
+			cmd.LaunchTUI()
 		},
 	}
 

@@ -26,21 +26,25 @@ type MenuModel struct {
 	done     bool
 	config   *model.Config
 	help     HelpModel
+	sidebar  SidebarModel
 }
 
 func NewMenuModel(cfg *model.Config) MenuModel {
+	sidebar := NewSidebarModel()
+	sidebar.UpdateClusterCount()
+
 	return MenuModel{
 		choices: []string{
-			"[1] 📋 List Clusters",
-			"[2] ✨ Create New Cluster",
-			"[3] 🗑️  Delete Cluster",
-			"[q] 🚪 Exit",
+			"📋 List Clusters",
+			"✨ Create New Cluster",
+			"🗑️  Delete Cluster",
 		},
 		cursor:   0,
 		selected: -1,
 		done:     false,
 		config:   cfg,
 		help:     NewHelpModel(),
+		sidebar:  sidebar,
 	}
 }
 
@@ -103,6 +107,18 @@ func (m MenuModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m MenuModel) View() string {
+	// Show help overlay if visible (full screen)
+	if m.help.IsVisible() {
+		helpView := m.help.View()
+		return lipgloss.Place(
+			80, 25,
+			lipgloss.Center, lipgloss.Center,
+			helpView,
+			lipgloss.WithWhitespaceChars(""),
+		)
+	}
+
+	// Build main content area
 	var s strings.Builder
 
 	titleStyle := lipgloss.NewStyle().
@@ -110,7 +126,7 @@ func (m MenuModel) View() string {
 		Foreground(lipgloss.Color("86")).
 		MarginBottom(1)
 
-	s.WriteString(titleStyle.Render("🚀 Go Kubernetes Helper") + "\n\n")
+	s.WriteString(titleStyle.Render("Main Menu") + "\n\n")
 	s.WriteString("What would you like to do?\n\n")
 
 	for i, choice := range m.choices {
@@ -129,26 +145,13 @@ func (m MenuModel) View() string {
 	helpStyle := lipgloss.NewStyle().
 		Faint(true).
 		Foreground(lipgloss.Color("240"))
-	s.WriteString(helpStyle.Render("Navigation: ↑/↓ or j/k • Quick: 1-3 • Enter: Select • q: Quit • ?: Help"))
+	s.WriteString(helpStyle.Render("↑/↓ or j/k to navigate • Enter to select • ?: Help"))
 	s.WriteString("\n")
 
-	menuView := lipgloss.NewStyle().
-		Padding(1, 2).
-		Render(s.String())
+	content := s.String()
 
-	// Show help overlay if visible
-	if m.help.IsVisible() {
-		// Center the help overlay on top of the menu
-		helpView := m.help.View()
-		return lipgloss.Place(
-			80, 25,
-			lipgloss.Center, lipgloss.Center,
-			helpView,
-			lipgloss.WithWhitespaceChars(""),
-		)
-	}
-
-	return menuView
+	// Combine with sidebar
+	return RenderWithSidebar(m.sidebar, content)
 }
 
 func (m MenuModel) Done() bool {
