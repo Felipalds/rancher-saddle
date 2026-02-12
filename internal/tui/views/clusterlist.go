@@ -2,6 +2,7 @@ package views
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/Felipalds/go-kubernetes-helper/internal/config"
@@ -16,29 +17,27 @@ var baseStyle = lipgloss.NewStyle().
 
 // ClusterListModel displays all clusters in a table
 type ClusterListModel struct {
-	table         table.Model
-	width         int
-	height        int
-	clusters      map[string]*config.ClusterConfig
-	clusterNames  []string
-	lastRefresh   time.Time
-	autoRefresh   bool
-	refreshTicker *time.Ticker
+	table           table.Model
+	width           int
+	height          int
+	clusters        map[string]*config.ClusterConfig
+	clusterNames    []string
+	selectedCluster string // Currently selected cluster for log viewing
+	showLogs        bool   // Whether to show logs
 }
+
+// refreshTickMsg is sent periodically to auto-refresh the cluster list
+type refreshTickMsg struct{}
 
 // NewClusterListModel creates a new cluster list view
 func NewClusterListModel() ClusterListModel {
-	columns := []table.Column{
-		{Title: "Name", Width: 20},
-		{Title: "Status", Width: 15},
-		{Title: "Nodes", Width: 7},
-		{Title: "Provider", Width: 10},
-		{Title: "Region", Width: 12},
-		{Title: "Age", Width: 10},
+	m := ClusterListModel{
+		width:  80,
+		height: 20,
 	}
 
 	t := table.New(
-		table.WithColumns(columns),
+		table.WithColumns(m.calculateColumns(80)),
 		table.WithFocused(true),
 		table.WithHeight(10),
 	)
@@ -55,21 +54,21 @@ func NewClusterListModel() ClusterListModel {
 		Bold(false)
 	t.SetStyles(s)
 
-	return ClusterListModel{
-		table:       t,
-		width:       80,
-		height:      20,
-		autoRefresh: true,
-		lastRefresh: time.Now(),
-	}
+	m.table = t
+	return m
 }
 
 // Init initializes the cluster list
 func (m ClusterListModel) Init() tea.Cmd {
-	return tea.Batch(
-		m.loadClusters(),
-		m.tickRefresh(),
-	)
+	return tea.Batch(m.loadClusters(), m.scheduleRefresh())
+}
+
+// scheduleRefresh returns a command that sends a refreshTickMsg periodically.
+// Uses 1s interval so logs and status updates appear in near real-time.
+func (m ClusterListModel) scheduleRefresh() tea.Cmd {
+	return tea.Tick(1*time.Second, func(t time.Time) tea.Msg {
+		return refreshTickMsg{}
+	})
 }
 
 // SetSize updates the table dimensions
@@ -78,6 +77,34 @@ func (m *ClusterListModel) SetSize(width, height int) {
 	m.height = height
 	m.table.SetHeight(height - 4) // Account for borders and padding
 	m.table.SetWidth(width - 4)
+	m.table.SetColumns(m.calculateColumns(width - 4))
+}
+
+// calculateColumns returns table columns sized to fill the given width
+func (m *ClusterListModel) calculateColumns(totalWidth int) []table.Column {
+	usable := totalWidth - 2
+	if usable < 80 {
+		usable = 80
+	}
+
+	// Fixed minimum widths for short columns, proportional for the rest
+	nameW := usable * 18 / 100
+	statusW := usable * 12 / 100
+	nodesW := usable * 8 / 100
+	providerW := usable * 10 / 100
+	regionW := usable * 14 / 100
+	ageW := usable * 8 / 100
+	urlW := usable - nameW - statusW - nodesW - providerW - regionW - ageW
+
+	return []table.Column{
+		{Title: "Name", Width: nameW},
+		{Title: "Status", Width: statusW},
+		{Title: "Nodes", Width: nodesW},
+		{Title: "Provider", Width: providerW},
+		{Title: "Region", Width: regionW},
+		{Title: "Rancher URL", Width: urlW},
+		{Title: "Age", Width: ageW},
+	}
 }
 
 // Update handles messages
@@ -87,6 +114,18 @@ func (m ClusterListModel) Update(msg tea.Msg) (ClusterListModel, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
+		case "x":
+			// Navigate to credentials management
+			return m, func() tea.Msg {
+				return StateChangeMsg{NewState: StateCredentialsList}
+			}
+
+		case "ctrl+p":
+			// Navigate to profiles management
+			return m, func() tea.Msg {
+				return StateChangeMsg{NewState: StateProfilesList}
+			}
+
 		case "n", "c":
 			// Navigate to create form
 			return m, func() tea.Msg {
@@ -113,11 +152,20 @@ func (m ClusterListModel) Update(msg tea.Msg) (ClusterListModel, tea.Cmd) {
 			return m, m.loadClusters()
 
 		case "enter":
-			// Show cluster details
+			// Toggle log viewing for selected cluster
 			if len(m.clusterNames) > 0 {
 				selectedRow := m.table.Cursor()
 				if selectedRow < len(m.clusterNames) {
-					// TODO: Implement details view
+					clusterName := m.clusterNames[selectedRow]
+					if m.showLogs && m.selectedCluster == clusterName {
+						// Hide logs if already showing
+						m.showLogs = false
+						m.selectedCluster = ""
+					} else {
+						// Show logs for this cluster
+						m.showLogs = true
+						m.selectedCluster = clusterName
+					}
 					return m, nil
 				}
 			}
@@ -126,16 +174,12 @@ func (m ClusterListModel) Update(msg tea.Msg) (ClusterListModel, tea.Cmd) {
 	case clustersLoadedMsg:
 		m.clusters = msg.clusters
 		m.clusterNames = msg.names
-		m.lastRefresh = time.Now()
 		m.updateTable()
 		return m, nil
 
-	case tickMsg:
-		// Auto-refresh every 5 seconds
-		if m.autoRefresh {
-			return m, tea.Batch(m.loadClusters(), m.tickRefresh())
-		}
-		return m, m.tickRefresh()
+	case refreshTickMsg:
+		// Auto-refresh: reload clusters and schedule next tick
+		return m, tea.Batch(m.loadClusters(), m.scheduleRefresh())
 	}
 
 	m.table, cmd = m.table.Update(msg)
@@ -148,14 +192,7 @@ func (m ClusterListModel) View() string {
 		return m.emptyState()
 	}
 
-	refreshIndicator := ""
-	if m.autoRefresh {
-		refreshIndicator = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("82")).
-			Render(fmt.Sprintf(" ● Auto-refresh (5s) • Last: %s", formatDuration(time.Since(m.lastRefresh))))
-	}
-
-	return baseStyle.Render(m.table.View()) + "\n" + refreshIndicator
+	return baseStyle.Render(m.table.View())
 }
 
 // emptyState shows a message when no clusters exist
@@ -177,7 +214,7 @@ func (m *ClusterListModel) updateTable() {
 	for _, name := range m.clusterNames {
 		cluster := m.clusters[name]
 
-		// Format status with color
+		style := lipgloss.NewStyle().Foreground(statusColor(cluster.Status))
 		status := formatStatus(cluster.Status)
 
 		// Get region
@@ -186,16 +223,26 @@ func (m *ClusterListModel) updateTable() {
 			region = r
 		}
 
-		// Calculate age
+		// Rancher URL: show public DNS of first node when cluster is running
+		rancherURL := ""
+		if cluster.Status == "running" {
+			if cluster.RancherURL != "" {
+				rancherURL = strings.TrimPrefix(cluster.RancherURL, "https://")
+			} else if len(cluster.InstanceDNS) > 0 {
+				rancherURL = cluster.InstanceDNS[0]
+			}
+		}
+
 		age := formatAge(cluster.CreatedAt)
 
 		rows = append(rows, table.Row{
-			name,
+			style.Render(name),
 			status,
-			fmt.Sprintf("%d", cluster.Cluster.InstanceCount),
-			cluster.Provider.Type,
-			region,
-			age,
+			style.Render(fmt.Sprintf("%d", cluster.Cluster.InstanceCount)),
+			style.Render(cluster.Provider.Type),
+			style.Render(region),
+			style.Render(rancherURL),
+			style.Render(age),
 		})
 	}
 
@@ -221,65 +268,13 @@ func (m ClusterListModel) loadClusters() tea.Cmd {
 	}
 }
 
-// tickRefresh creates a ticker for auto-refresh
-func (m ClusterListModel) tickRefresh() tea.Cmd {
-	return tea.Tick(5*time.Second, func(t time.Time) tea.Msg {
-		return tickMsg(t)
-	})
-}
-
 // Message types
 type clustersLoadedMsg struct {
 	clusters map[string]*config.ClusterConfig
 	names    []string
 }
 
-type tickMsg time.Time
-
-// formatStatus returns a colored status string
-func formatStatus(status string) string {
-	switch status {
-	case "running":
-		return lipgloss.NewStyle().Foreground(lipgloss.Color("82")).Render("● running")
-	case "pending":
-		return lipgloss.NewStyle().Foreground(lipgloss.Color("220")).Render("⚠ pending")
-	case "failed":
-		return lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Render("✗ failed")
-	case "creating":
-		return lipgloss.NewStyle().Foreground(lipgloss.Color("39")).Render("⟳ creating")
-	case "deleting":
-		return lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render("◐ deleting")
-	default:
-		return lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render("○ " + status)
-	}
-}
-
-// formatAge converts time to human-readable age
-func formatAge(t time.Time) string {
-	if t.IsZero() {
-		return "-"
-	}
-
-	duration := time.Since(t)
-	hours := int(duration.Hours())
-
-	if hours < 1 {
-		minutes := int(duration.Minutes())
-		return fmt.Sprintf("%dm", minutes)
-	} else if hours < 24 {
-		return fmt.Sprintf("%dh", hours)
-	} else {
-		days := hours / 24
-		return fmt.Sprintf("%dd", days)
-	}
-}
-
-// formatDuration formats a duration to human-readable string
-func formatDuration(d time.Duration) string {
-	if d < time.Minute {
-		return fmt.Sprintf("%ds ago", int(d.Seconds()))
-	} else if d < time.Hour {
-		return fmt.Sprintf("%dm ago", int(d.Minutes()))
-	}
-	return fmt.Sprintf("%dh ago", int(d.Hours()))
+// GetSelectedCluster returns the currently selected cluster name and whether logs are shown
+func (m ClusterListModel) GetSelectedCluster() (string, bool) {
+	return m.selectedCluster, m.showLogs
 }

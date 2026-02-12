@@ -8,18 +8,29 @@ Use this space to plan upcoming features, architectural changes, and major enhan
 
 ## What Belongs Here
 
-- ✅ Feature proposals and specifications
-- ✅ Architecture design documents for major changes
-- ✅ Implementation plans and technical approaches
-- ✅ Breaking change proposals
-- ✅ API/interface design documents
+- Feature proposals and specifications
+- Architecture design documents for major changes
+- Implementation plans and technical approaches
+- Breaking change proposals
+- API/interface design documents
 
 ## What Does NOT Belong Here
 
-- ❌ Implemented features (these go in `/CONTEXT.md`)
-- ❌ Bug reports (create GitHub issues)
-- ❌ Quick notes or TODOs
-- ❌ Code documentation (use inline comments)
+- Implemented features (these go in `/CONTEXT.md`)
+- Bug reports (create GitHub issues)
+- Quick notes or TODOs
+- Code documentation (use inline comments)
+
+## Current State (v0.5)
+
+All current features are documented in `/CONTEXT.md`. Key areas for future planning:
+
+- **New Cloud Providers**: Azure, GCP, vSphere (Provider interface exists)
+- **New Orchestrators**: Kubeadm, Minikube (Orchestrator interface exists)
+- **Cluster Upgrades**: In-place Kubernetes/Rancher version upgrades
+- **Monitoring**: Integration with Prometheus/Grafana
+- **Multi-region**: Cross-region HA clusters
+- **Custom Addons**: User-defined Helm charts post-deployment
 
 ## Document Template
 
@@ -28,9 +39,8 @@ When planning a new feature, create a file with this structure:
 ```markdown
 # [Feature Name]
 
-**Status**: 📋 Planned / 🚧 In Progress / ✅ Implemented
+**Status**: Planned / In Progress / Implemented
 **Priority**: High / Medium / Low
-**Estimated Effort**: Small / Medium / Large
 **Target Version**: vX.X
 
 ## Problem Statement
@@ -45,22 +55,10 @@ When planning a new feature, create a file with this structure:
 ## Implementation Plan
 [Step-by-step tasks]
 
-## Testing Strategy
-[How to verify it works]
-
-## Risks and Considerations
-[Potential issues, breaking changes]
-
-## Alternative Approaches
-[Other options considered]
+## Files to Modify
+[List of files and what changes]
 ```
-
-## Current Planning
-
-**No active planning documents**
-
-When you and your AI assistant plan new features, they will be added here.
 
 ---
 
-**Note**: Once a feature is fully implemented and verified, move its documentation to the main `/CONTEXT.md` file and remove the planning document from here.
+**Note**: Once a feature is fully implemented, move its documentation to `/CONTEXT.md` and remove the planning document from here.

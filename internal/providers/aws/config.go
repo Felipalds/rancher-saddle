@@ -42,7 +42,9 @@ func (c *AWSConfig) FromMap(m map[string]interface{}) {
 	if v, ok := m["instance_type"].(string); ok {
 		c.InstanceType = v
 	}
-	if v, ok := m["root_volume_size"].(float64); ok {
+	if v, ok := m["root_volume_size"].(int); ok {
+		c.RootVolumeSize = v
+	} else if v, ok := m["root_volume_size"].(float64); ok {
 		c.RootVolumeSize = int(v)
 	}
 	if v, ok := m["ssh_key_name"].(string); ok {
@@ -51,7 +53,9 @@ func (c *AWSConfig) FromMap(m map[string]interface{}) {
 	if v, ok := m["node_prefix"].(string); ok {
 		c.NodePrefix = v
 	}
-	if v, ok := m["instance_count"].(float64); ok {
+	if v, ok := m["instance_count"].(int); ok {
+		c.InstanceCount = v
+	} else if v, ok := m["instance_count"].(float64); ok {
 		c.InstanceCount = int(v)
 	}
 

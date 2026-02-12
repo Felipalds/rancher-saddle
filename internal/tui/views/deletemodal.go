@@ -1,6 +1,12 @@
 package views
 
 import (
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+
+	"github.com/Felipalds/go-kubernetes-helper/internal/config"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -37,9 +43,22 @@ func (m DeleteModalModel) Update(msg tea.Msg) (DeleteModalModel, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "y", "enter":
-			// TODO: Actually delete the cluster
+			clusterName := m.clusterName
 			return m, func() tea.Msg {
-				return ClusterDeletedMsg{ClusterName: m.clusterName}
+				// Mark as deleting immediately
+				cfg, err := config.LoadClustersConfig("config.yaml")
+				if err == nil {
+					if cluster, exists := cfg.GetCluster(clusterName); exists {
+						cluster.Status = "deleting"
+						cfg.AddCluster(clusterName, cluster)
+						cfg.Save("config.yaml")
+					}
+				}
+
+				// Run destruction in background so TUI stays responsive
+				go destroyCluster(clusterName)
+
+				return ClusterDeletedMsg{ClusterName: clusterName}
 			}
 
 		case "n", "esc":
@@ -84,4 +103,80 @@ func (m DeleteModalModel) ViewOver(content string) string {
 		modal,
 		lipgloss.WithWhitespaceBackground(lipgloss.Color("0")),
 	)
+}
+
+// destroyCluster runs infrastructure destruction and config cleanup in the background
+func destroyCluster(name string) {
+	// Set up logging
+	logPath := fmt.Sprintf("logs/%s.log", name)
+	os.MkdirAll("logs", 0755)
+	logFile, _ := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+
+	writeLog := func(message string) {
+		if logFile != nil {
+			fmt.Fprintf(logFile, "[%s] %s\n", getTimestamp(), message)
+			logFile.Sync()
+		}
+	}
+
+	writeLog(fmt.Sprintf("=== Starting deletion for cluster: %s ===", name))
+
+	// Load cluster config to get build directory
+	cfg, err := config.LoadClustersConfig("config.yaml")
+	if err != nil {
+		writeLog(fmt.Sprintf("ERROR: Failed to load config: %v", err))
+		return
+	}
+
+	cluster, exists := cfg.GetCluster(name)
+	if !exists {
+		writeLog("Cluster not found in config, nothing to destroy")
+		return
+	}
+
+	buildDir := cluster.BuildDir
+	if buildDir == "" {
+		buildDir = filepath.Join("clusters", name)
+	}
+
+	// Destroy infrastructure with tofu
+	if _, err := os.Stat(buildDir); !os.IsNotExist(err) {
+		writeLog("Destroying infrastructure with tofu destroy...")
+		cmd := exec.Command("tofu", "destroy", "-auto-approve")
+		cmd.Dir = buildDir
+		if logFile != nil {
+			cmd.Stdout = logFile
+			cmd.Stderr = logFile
+		}
+
+		if err := cmd.Run(); err != nil {
+			writeLog(fmt.Sprintf("Warning: tofu destroy failed: %v", err))
+			writeLog("You may need to manually clean up cloud resources.")
+			// Update status to failed instead of removing
+			updateClusterStatus(name, "failed")
+			if logFile != nil {
+				logFile.Close()
+			}
+			return
+		}
+
+		// Remove build directory
+		writeLog("Removing build directory...")
+		if err := os.RemoveAll(buildDir); err != nil {
+			writeLog(fmt.Sprintf("Warning: failed to remove build directory: %v", err))
+		}
+	} else {
+		writeLog("No build directory found, skipping infrastructure destruction")
+	}
+
+	// Remove cluster from config
+	writeLog("Removing cluster from config.yaml...")
+	cfg, _ = config.LoadClustersConfig("config.yaml")
+	cfg.DeleteCluster(name)
+	cfg.Save("config.yaml")
+
+	writeLog(fmt.Sprintf("Cluster '%s' deleted successfully", name))
+	if logFile != nil {
+		logFile.Close()
+	}
 }

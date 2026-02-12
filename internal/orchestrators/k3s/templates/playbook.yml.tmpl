@@ -12,8 +12,8 @@
   become: yes
   vars:
     k3s_version: "{{.K3sVersion}}"
-    token: "{{ "{{" }} hostvars[groups['init'][0]]['k3s_token'] {{ "}}" }}"
-    server_url: "{{ "{{" }} hostvars[groups['init'][0]]['k3s_url'] {{ "}}" }}"
+    token: "{{"{{"}} hostvars[groups['init'][0]]['k3s_token'] {{"}}"}}"
+    server_url: "{{"{{"}} hostvars[groups['init'][0]]['k3s_url'] {{"}}"}}"
 
   tasks:
 {{.JoinTasks}}
@@ -23,6 +23,8 @@
   become: yes
   vars:
     rancher_version: "{{.RancherVersion}}"
+    rancher_prime: {{.RancherPrime}}
+    bootstrap_password: "{{.BootstrapPassword}}"
 
   tasks:
 {{.AddonTasks}}

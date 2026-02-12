@@ -1,6 +1,10 @@
 package tui
 
 import (
+	"fmt"
+	"os"
+	"strings"
+
 	"github.com/Felipalds/go-kubernetes-helper/internal/tui/views"
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
@@ -9,8 +13,9 @@ import (
 
 // FooterModel represents the persistent footer with context-aware keybindings
 type FooterModel struct {
-	width int
-	help  help.Model
+	width  int
+	height int
+	help   help.Model
 }
 
 // keyMap defines keybindings for each state
@@ -52,7 +57,7 @@ var (
 		),
 		Enter: key.NewBinding(
 			key.WithKeys("enter"),
-			key.WithHelp("enter", "details"),
+			key.WithHelp("enter", "show/hide logs"),
 		),
 		New: key.NewBinding(
 			key.WithKeys("n", "c"),
@@ -66,6 +71,10 @@ var (
 			key.WithKeys("r"),
 			key.WithHelp("r", "refresh"),
 		),
+		Back: key.NewBinding(
+			key.WithKeys("x", "ctrl+p"),
+			key.WithHelp("x/ctrl+p", "creds/profiles"),
+		),
 		Help: key.NewBinding(
 			key.WithKeys("?"),
 			key.WithHelp("?", "help"),
@@ -76,18 +85,80 @@ var (
 		),
 	}
 
+	credentialsListKeys = keyMap{
+		Up: key.NewBinding(
+			key.WithKeys("up", "k"),
+			key.WithHelp("↑/k", "up"),
+		),
+		Down: key.NewBinding(
+			key.WithKeys("down", "j"),
+			key.WithHelp("↓/j", "down"),
+		),
+		Enter: key.NewBinding(
+			key.WithKeys("enter"),
+			key.WithHelp("enter", "edit"),
+		),
+		New: key.NewBinding(
+			key.WithKeys("n", "c"),
+			key.WithHelp("n", "new credential"),
+		),
+		Delete: key.NewBinding(
+			key.WithKeys("d"),
+			key.WithHelp("d", "delete"),
+		),
+		Back: key.NewBinding(
+			key.WithKeys("esc"),
+			key.WithHelp("esc", "back"),
+		),
+		Help: key.NewBinding(
+			key.WithKeys("?"),
+			key.WithHelp("?", "help"),
+		),
+		Quit: key.NewBinding(
+			key.WithKeys("ctrl+c"),
+			key.WithHelp("ctrl+c", "quit"),
+		),
+	}
+
+	credentialsFormKeys = keyMap{
+		Up: key.NewBinding(
+			key.WithKeys("up", "shift+tab"),
+			key.WithHelp("↑/shift+tab", "prev"),
+		),
+		Down: key.NewBinding(
+			key.WithKeys("down", "tab"),
+			key.WithHelp("↓/tab", "next"),
+		),
+		Enter: key.NewBinding(
+			key.WithKeys("enter"),
+			key.WithHelp("enter", "save"),
+		),
+		Back: key.NewBinding(
+			key.WithKeys("esc"),
+			key.WithHelp("esc", "cancel"),
+		),
+		Help: key.NewBinding(
+			key.WithKeys("?"),
+			key.WithHelp("?", "help"),
+		),
+		Quit: key.NewBinding(
+			key.WithKeys("ctrl+c"),
+			key.WithHelp("ctrl+c", "quit"),
+		),
+	}
+
 	createFormKeys = keyMap{
 		Up: key.NewBinding(
 			key.WithKeys("up", "shift+tab"),
 			key.WithHelp("↑/shift+tab", "prev field"),
 		),
 		Down: key.NewBinding(
-			key.WithKeys("down", "tab"),
-			key.WithHelp("↓/tab", "next field"),
+			key.WithKeys("down", "tab", "left", "right"),
+			key.WithHelp("↓/tab/◀/▶", "navigate/select"),
 		),
 		Enter: key.NewBinding(
-			key.WithKeys("enter"),
-			key.WithHelp("enter", "submit/next"),
+			key.WithKeys("enter", "ctrl+p"),
+			key.WithHelp("enter/ctrl+p", "submit/profile"),
 		),
 		Back: key.NewBinding(
 			key.WithKeys("esc"),
@@ -100,6 +171,68 @@ var (
 		Quit: key.NewBinding(
 			key.WithKeys("ctrl+c"),
 			key.WithHelp("ctrl+c", "force quit"),
+		),
+	}
+
+	profilesListKeys = keyMap{
+		Up: key.NewBinding(
+			key.WithKeys("up", "k"),
+			key.WithHelp("↑/k", "up"),
+		),
+		Down: key.NewBinding(
+			key.WithKeys("down", "j"),
+			key.WithHelp("↓/j", "down"),
+		),
+		Enter: key.NewBinding(
+			key.WithKeys("enter"),
+			key.WithHelp("enter", "edit"),
+		),
+		New: key.NewBinding(
+			key.WithKeys("n", "c"),
+			key.WithHelp("n", "new profile"),
+		),
+		Delete: key.NewBinding(
+			key.WithKeys("d"),
+			key.WithHelp("d", "delete"),
+		),
+		Back: key.NewBinding(
+			key.WithKeys("esc"),
+			key.WithHelp("esc", "back"),
+		),
+		Help: key.NewBinding(
+			key.WithKeys("?"),
+			key.WithHelp("?", "help"),
+		),
+		Quit: key.NewBinding(
+			key.WithKeys("ctrl+c"),
+			key.WithHelp("ctrl+c", "quit"),
+		),
+	}
+
+	profilesFormKeys = keyMap{
+		Up: key.NewBinding(
+			key.WithKeys("up", "shift+tab"),
+			key.WithHelp("↑/shift+tab", "prev"),
+		),
+		Down: key.NewBinding(
+			key.WithKeys("down", "tab"),
+			key.WithHelp("↓/tab", "next"),
+		),
+		Enter: key.NewBinding(
+			key.WithKeys("enter"),
+			key.WithHelp("enter", "save"),
+		),
+		Back: key.NewBinding(
+			key.WithKeys("esc"),
+			key.WithHelp("esc", "cancel"),
+		),
+		Help: key.NewBinding(
+			key.WithKeys("?"),
+			key.WithHelp("?", "help"),
+		),
+		Quit: key.NewBinding(
+			key.WithKeys("ctrl+c"),
+			key.WithHelp("ctrl+c", "quit"),
 		),
 	}
 
@@ -135,6 +268,11 @@ func (f *FooterModel) SetWidth(width int) {
 	f.help.Width = width - 4
 }
 
+// SetHeight updates the total terminal height (used to calculate log panel size)
+func (f *FooterModel) SetHeight(height int) {
+	f.height = height
+}
+
 // ViewForState renders the footer with context-aware keybindings
 func (f FooterModel) ViewForState(state views.AppState) string {
 	footerStyle := lipgloss.NewStyle().
@@ -154,6 +292,14 @@ func (f FooterModel) ViewForState(state views.AppState) string {
 		keys = createFormKeys
 	case views.StateDeleteConfirm:
 		keys = deleteModalKeys
+	case views.StateCredentialsList:
+		keys = credentialsListKeys
+	case views.StateCredentialsForm:
+		keys = credentialsFormKeys
+	case views.StateProfilesList:
+		keys = profilesListKeys
+	case views.StateProfilesForm:
+		keys = profilesFormKeys
 	default:
 		keys = clusterListKeys
 	}
@@ -164,4 +310,59 @@ func (f FooterModel) ViewForState(state views.AppState) string {
 	})
 
 	return footerStyle.Render(helpView)
+}
+
+// ViewWithLogs renders the footer with deployment logs using 33% of the screen
+func (f FooterModel) ViewWithLogs(clusterName string) string {
+	// Calculate log panel height: 33% of terminal, minimum 6 lines
+	logPanelHeight := f.height / 3
+	if logPanelHeight < 6 {
+		logPanelHeight = 6
+	}
+
+	// Account for border (1) and title line (1)
+	logLines := logPanelHeight - 2
+	if logLines < 3 {
+		logLines = 3
+	}
+
+	logStyle := lipgloss.NewStyle().
+		Width(f.width).
+		Height(logPanelHeight).
+		Background(lipgloss.Color("234")).
+		Foreground(lipgloss.Color("250")).
+		Padding(0, 1).
+		BorderStyle(lipgloss.NormalBorder()).
+		BorderForeground(lipgloss.Color("62")).
+		BorderTop(true)
+
+	titleStyle := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("86"))
+
+	// Read logs from file
+	logPath := fmt.Sprintf("logs/%s.log", clusterName)
+	logs := readLastLines(logPath, logLines)
+
+	title := titleStyle.Render(fmt.Sprintf("Logs: %s", clusterName))
+	helpText := lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Faint(true).Render(" • Enter: hide")
+
+	content := title + helpText + "\n" + logs
+
+	return logStyle.Render(content)
+}
+
+// readLastLines reads the last n lines from a file
+func readLastLines(path string, n int) string {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "No logs available yet..."
+	}
+
+	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+	if len(lines) > n {
+		lines = lines[len(lines)-n:]
+	}
+
+	return strings.Join(lines, "\n")
 }

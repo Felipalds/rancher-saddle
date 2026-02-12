@@ -8,6 +8,10 @@ const (
 	StateCreateForm
 	StateDeleteConfirm
 	StateClusterDetails
+	StateCredentialsList
+	StateCredentialsForm
+	StateProfilesList
+	StateProfilesForm
 	StateHelp
 	StateQuitting
 )
@@ -23,6 +27,10 @@ func (s AppState) String() string {
 		return "Delete Cluster"
 	case StateClusterDetails:
 		return "Cluster Details"
+	case StateCredentialsList:
+		return "Credentials"
+	case StateCredentialsForm:
+		return "Edit Credentials"
 	case StateHelp:
 		return "Help"
 	case StateQuitting:

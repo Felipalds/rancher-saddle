@@ -30,7 +30,7 @@
   changed_when: false
 
 - name: Install Cert-Manager
-  command: /usr/local/bin/k3s kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.16.1/cert-manager.yaml
+  command: /usr/local/bin/k3s kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.17.2/cert-manager.yaml
 
 - name: Wait for Cert-Manager Deployments
   command: /usr/local/bin/k3s kubectl wait --for=condition=Available deployment --all -n cert-manager --timeout=300s
@@ -48,11 +48,16 @@
   pause:
     seconds: 30
 
-- name: Add Rancher Helm Repos
-  command: /usr/local/bin/helm repo add {{ item.name }} {{ item.url }}
-  loop:
-    - { name: 'rancher-latest', url: 'https://releases.rancher.com/server-charts/latest' }
-    - { name: 'jetstack', url: 'https://charts.jetstack.io' }
+- name: Add Rancher Prime Helm Repo
+  command: /usr/local/bin/helm repo add rancher-prime https://charts.rancher.com/server-charts/prime
+  when: rancher_prime | bool
+
+- name: Add Rancher Latest Helm Repo
+  command: /usr/local/bin/helm repo add rancher-latest https://releases.rancher.com/server-charts/latest
+  when: not (rancher_prime | bool)
+
+- name: Add Jetstack Helm Repo
+  command: /usr/local/bin/helm repo add jetstack https://charts.jetstack.io
 
 - name: Update Helm Repos
   command: /usr/local/bin/helm repo update
@@ -61,13 +66,28 @@
   command: /usr/local/bin/k3s kubectl create namespace cattle-system
   ignore_errors: yes
 
-- name: Install or Upgrade Rancher
+- name: Install or Upgrade Rancher (Prime)
   command: >
-    /usr/local/bin/helm upgrade --install rancher rancher-latest/rancher
+    /usr/local/bin/helm upgrade --install rancher rancher-prime/rancher
     --namespace cattle-system
     --set hostname={{ rancher_hostname }}
-    --set bootstrapPassword=admin
+    --set bootstrapPassword={{ bootstrap_password }}
+    --set rancherImage=registry.suse.com/rancher/rancher
+    --set systemDefaultRegistry=registry.suse.com
     --set replicas=1
     --version {{ rancher_version }}
     --kubeconfig /etc/rancher/k3s/k3s.yaml
     --create-namespace
+  when: rancher_prime | bool
+
+- name: Install or Upgrade Rancher (Latest)
+  command: >
+    /usr/local/bin/helm upgrade --install rancher rancher-latest/rancher
+    --namespace cattle-system
+    --set hostname={{ rancher_hostname }}
+    --set bootstrapPassword={{ bootstrap_password }}
+    --set replicas=1
+    --version {{ rancher_version }}
+    --kubeconfig /etc/rancher/k3s/k3s.yaml
+    --create-namespace
+  when: not (rancher_prime | bool)

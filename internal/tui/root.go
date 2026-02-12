@@ -9,38 +9,45 @@ import (
 
 // RootModel is the main state machine that routes between different views
 type RootModel struct {
-	state        views.AppState
-	width        int
-	height       int
-	header       HeaderModel
-	footer       FooterModel
-	help         HelpModel
-	clusterList  views.ClusterListModel
-	createForm   views.CreateFormModel
-	deleteModal  views.DeleteModalModel
-	ready        bool
+	state           views.AppState
+	width           int
+	height          int
+	header          HeaderModel
+	footer          FooterModel
+	help            HelpModel
+	clusterList     views.ClusterListModel
+	createForm      views.CreateFormModel
+	deleteModal     views.DeleteModalModel
+	credentialsList views.CredentialsListModel
+	credentialsForm views.CredentialsFormModel
+	profilesList    views.ProfilesListModel
+	profilesForm    views.ProfilesFormModel
+	ready           bool
 }
 
 // NewRootModel creates a new root model with initial state
 func NewRootModel() RootModel {
 	return RootModel{
-		state:       views.StateClusterList,
-		width:       80,
-		height:      24,
-		header:      NewHeaderModel(),
-		footer:      NewFooterModel(),
-		help:        NewHelpModel(),
-		clusterList: views.NewClusterListModel(),
-		createForm:  views.NewCreateFormModel(),
-		deleteModal: views.NewDeleteModalModel(),
-		ready:       false,
+		state:           views.StateClusterList,
+		width:           80,
+		height:          24,
+		header:          NewHeaderModel(),
+		footer:          NewFooterModel(),
+		help:            NewHelpModel(),
+		clusterList:     views.NewClusterListModel(),
+		createForm:      views.NewCreateFormModel(),
+		deleteModal:     views.NewDeleteModalModel(),
+		credentialsList: views.NewCredentialsListModel(),
+		credentialsForm: views.NewCredentialsFormModel(),
+		profilesList:    views.NewProfilesListModel(),
+		profilesForm:    views.NewProfilesFormModel(),
+		ready:           false,
 	}
 }
 
 // Init initializes the root model
 func (m RootModel) Init() tea.Cmd {
 	return tea.Batch(
-		tea.EnterAltScreen,
 		m.clusterList.Init(),
 	)
 }
@@ -58,12 +65,20 @@ func (m RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Update all child components with new size
 		m.header.SetWidth(m.width)
 		m.footer.SetWidth(m.width)
+		m.footer.SetHeight(m.height)
 
-		// Calculate content height (total - header - footer)
-		contentHeight := m.height - 3 - 3 // 3 lines for header, 3 for footer
+		// Calculate content height: full height minus header(2) and footer(3)
+		contentHeight := m.height - 5
+		if contentHeight < 10 {
+			contentHeight = 10
+		}
 		m.clusterList.SetSize(m.width, contentHeight)
 		m.createForm.SetSize(m.width, contentHeight)
 		m.deleteModal.SetSize(m.width, contentHeight)
+		m.credentialsList.SetSize(m.width, contentHeight)
+		m.credentialsForm.SetSize(m.width, contentHeight)
+		m.profilesList.SetSize(m.width, contentHeight)
+		m.profilesForm.SetSize(m.width, contentHeight)
 
 		return m, nil
 
@@ -125,6 +140,34 @@ func (m RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		case views.StateClusterList:
 			return m, m.clusterList.Init()
+		case views.StateCredentialsList:
+			return m, m.credentialsList.Init()
+		case views.StateCredentialsForm:
+			if msg.Data != nil {
+				// Check if it's a signal to return to create form
+				if str, ok := msg.Data.(string); ok {
+					if str == "return_to_create" {
+						m.credentialsForm.SetReturnTo(views.StateCreateForm)
+						return m, m.credentialsForm.Init()
+					} else if str != "credential_saved" {
+						// Edit existing credential
+						return m, m.credentialsForm.SetEditMode(str)
+					}
+				}
+			}
+			// Create new credential
+			return m, m.credentialsForm.Init()
+		case views.StateProfilesList:
+			return m, m.profilesList.Init()
+		case views.StateProfilesForm:
+			if msg.Data != nil {
+				if profileName, ok := msg.Data.(string); ok {
+					// Edit existing profile
+					return m, m.profilesForm.SetEditMode(profileName)
+				}
+			}
+			// Create new profile
+			return m, m.profilesForm.Init()
 		}
 		return m, nil
 
@@ -149,6 +192,14 @@ func (m RootModel) routeUpdate(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.createForm, cmd = m.createForm.Update(msg)
 	case views.StateDeleteConfirm:
 		m.deleteModal, cmd = m.deleteModal.Update(msg)
+	case views.StateCredentialsList:
+		m.credentialsList, cmd = m.credentialsList.Update(msg)
+	case views.StateCredentialsForm:
+		m.credentialsForm, cmd = m.credentialsForm.Update(msg)
+	case views.StateProfilesList:
+		m.profilesList, cmd = m.profilesList.Update(msg)
+	case views.StateProfilesForm:
+		m.profilesForm, cmd = m.profilesForm.Update(msg)
 	}
 
 	return m, cmd
@@ -167,21 +218,61 @@ func (m RootModel) View() string {
 
 	// Build the layout
 	header := m.header.View()
-	footer := m.footer.ViewForState(m.state)
+	headerHeight := 2 // header + newline
+	footerBarHeight := 3 // border + 1 line + padding
 
 	// Get content from active view
 	var content string
+	var footer string
 	switch m.state {
 	case views.StateClusterList:
-		content = m.clusterList.View()
+		// Check if logs should be shown
+		if selectedCluster, showLogs := m.clusterList.GetSelectedCluster(); showLogs {
+			// Log panel takes 33% of screen; shrink cluster list to fit
+			logPanelHeight := m.height / 3
+			if logPanelHeight < 6 {
+				logPanelHeight = 6
+			}
+			reducedHeight := m.height - headerHeight - logPanelHeight - 1
+			if reducedHeight < 6 {
+				reducedHeight = 6
+			}
+			m.clusterList.SetSize(m.width, reducedHeight)
+			content = m.clusterList.View()
+			footer = m.footer.ViewWithLogs(selectedCluster)
+		} else {
+			// No logs: cluster list gets full content area
+			fullHeight := m.height - headerHeight - footerBarHeight
+			if fullHeight < 10 {
+				fullHeight = 10
+			}
+			m.clusterList.SetSize(m.width, fullHeight)
+			content = m.clusterList.View()
+			footer = m.footer.ViewForState(m.state)
+		}
 	case views.StateCreateForm:
 		content = m.createForm.View()
+		footer = m.footer.ViewForState(m.state)
 	case views.StateDeleteConfirm:
 		// Show cluster list in background with modal overlay
 		content = m.clusterList.View()
 		content = m.deleteModal.ViewOver(content)
+		footer = m.footer.ViewForState(m.state)
+	case views.StateCredentialsList:
+		content = m.credentialsList.View()
+		footer = m.footer.ViewForState(m.state)
+	case views.StateCredentialsForm:
+		content = m.credentialsForm.View()
+		footer = m.footer.ViewForState(m.state)
+	case views.StateProfilesList:
+		content = m.profilesList.View()
+		footer = m.footer.ViewForState(m.state)
+	case views.StateProfilesForm:
+		content = m.profilesForm.View()
+		footer = m.footer.ViewForState(m.state)
 	default:
 		content = fmt.Sprintf("State: %s (not implemented)", m.state)
+		footer = m.footer.ViewForState(m.state)
 	}
 
 	// Combine all parts

@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"sort"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -43,8 +44,10 @@ type KubernetesSection struct {
 
 // RancherSection contains Rancher configuration
 type RancherSection struct {
-	Version string `yaml:"version"`
-	Deploy  bool   `yaml:"deploy"`
+	Version           string `yaml:"version"`
+	Deploy            bool   `yaml:"deploy"`
+	Prime             bool   `yaml:"prime"`
+	BootstrapPassword string `yaml:"bootstrap_password"`
 }
 
 // SSHSection contains SSH configuration
@@ -124,12 +127,13 @@ func (c *ClustersConfig) DeleteCluster(name string) {
 	delete(c.Clusters, name)
 }
 
-// ListClusters returns all cluster names
+// ListClusters returns all cluster names sorted alphabetically
 func (c *ClustersConfig) ListClusters() []string {
 	names := make([]string, 0, len(c.Clusters))
 	for name := range c.Clusters {
 		names = append(names, name)
 	}
+	sort.Strings(names)
 	return names
 }
 
@@ -154,6 +158,8 @@ func (cc *ClusterConfig) ToModernConfig() *Config {
 	}
 	cfg.OrchestratorConfig["rancher_version"] = cc.Rancher.Version
 	cfg.OrchestratorConfig["deploy_rancher"] = cc.Rancher.Deploy
+	cfg.OrchestratorConfig["rancher_prime"] = cc.Rancher.Prime
+	cfg.OrchestratorConfig["rancher_bootstrap_password"] = cc.Rancher.BootstrapPassword
 
 	return cfg
 }
@@ -187,6 +193,12 @@ func FromModernConfig(cfg *Config) *ClusterConfig {
 		}
 		if v, ok := cfg.OrchestratorConfig["deploy_rancher"].(bool); ok {
 			cc.Rancher.Deploy = v
+		}
+		if v, ok := cfg.OrchestratorConfig["rancher_prime"].(bool); ok {
+			cc.Rancher.Prime = v
+		}
+		if v, ok := cfg.OrchestratorConfig["rancher_bootstrap_password"].(string); ok {
+			cc.Rancher.BootstrapPassword = v
 		}
 	}
 

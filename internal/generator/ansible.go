@@ -21,7 +21,7 @@ const ansibleTemplate = `
       changed_when: false
 
     - name: Install RKE2 server (Init)
-      shell: curl -sfL https://get.rke2.io | INSTALL_RKE2_VERSION="{{ "{{" }} rke2_version {{ "}}" }}" sh -
+      shell: curl -sfL https://get.rke2.io | INSTALL_RKE2_VERSION="{{"{{"}} rke2_version {{"}}"}}" sh -
       args:
         creates: /usr/local/bin/rke2
 
@@ -47,8 +47,8 @@ const ansibleTemplate = `
 
     - name: Set Token Fact
       set_fact:
-        rke2_token: "{{ "{{" }} rke2_token_base64['content'] | b64decode | trim {{ "}}" }}"
-        rke2_url: "https://{{ "{{" }} private_ip.stdout | trim {{ "}}" }}:9345"
+        rke2_token: "{{"{{"}} rke2_token_base64['content'] | b64decode | trim {{"}}"}}"
+        rke2_url: "https://{{"{{"}} private_ip.stdout | trim {{"}}"}}:9345"
 
     - name: Wait for RKE2 server to be listening on port 9345
       wait_for:
@@ -62,8 +62,8 @@ const ansibleTemplate = `
   become: yes
   vars:
     rke2_version: "{{.RKE2Version}}"
-    token: "{{ "{{" }} hostvars[groups['init'][0]]['rke2_token'] {{ "}}" }}"
-    server_url: "{{ "{{" }} hostvars[groups['init'][0]]['rke2_url'] {{ "}}" }}"
+    token: "{{"{{"}} hostvars[groups['init'][0]]['rke2_token'] {{"}}"}}"
+    server_url: "{{"{{"}} hostvars[groups['init'][0]]['rke2_url'] {{"}}"}}"
 
   tasks:
     - name: Wait for cloud-init
@@ -71,7 +71,7 @@ const ansibleTemplate = `
       changed_when: false
 
     - name: Install RKE2 binaries (Join)
-      shell: curl -sfL https://get.rke2.io | INSTALL_RKE2_VERSION="{{ "{{" }} rke2_version {{ "}}" }}" sh -
+      shell: curl -sfL https://get.rke2.io | INSTALL_RKE2_VERSION="{{"{{"}} rke2_version {{"}}"}}" sh -
       args:
         creates: /usr/local/bin/rke2
 
@@ -85,8 +85,8 @@ const ansibleTemplate = `
       copy:
         dest: /etc/rancher/rke2/config.yaml
         content: |
-          server: {{ "{{" }} server_url {{ "}}" }}
-          token: {{ "{{" }} token {{ "}}" }}
+          server: {{"{{"}} server_url {{"}}"}}
+          token: {{"{{"}} token {{"}}"}}
         mode: '0600'
 
     - name: Enable and start RKE2 Server
@@ -118,7 +118,7 @@ const ansibleTemplate = `
     - name: Set up kubectl and kubeconfig for convenience
       lineinfile:
         path: /root/.bashrc
-        line: "{{ "{{" }} item {{ "}}" }}"
+        line: "{{"{{"}} item {{"}}"}}"
       loop:
         - 'export PATH=$PATH:/var/lib/rancher/rke2/bin'
         - 'export KUBECONFIG=/etc/rancher/rke2/rke2.yaml'
@@ -164,7 +164,7 @@ const ansibleTemplate = `
         seconds: 30
 
     - name: Add Rancher Helm Repos
-      command: /usr/local/bin/helm repo add {{ "{{" }} item.name {{ "}}" }} {{ "{{" }} item.url {{ "}}" }}
+      command: /usr/local/bin/helm repo add {{"{{"}} item.name {{"}}"}} {{"{{"}} item.url {{"}}"}}
       loop:
         - { name: 'rancher-latest', url: 'https://releases.rancher.com/server-charts/latest' }
         - { name: 'jetstack', url: 'https://charts.jetstack.io' }
@@ -180,10 +180,10 @@ const ansibleTemplate = `
       command: >
         /usr/local/bin/helm upgrade --install rancher rancher-latest/rancher
         --namespace cattle-system
-        --set hostname={{ "{{" }} rancher_hostname {{ "}}" }}
+        --set hostname={{"{{"}} rancher_hostname {{"}}"}}
         --set bootstrapPassword=admin
         --set replicas=1
-        --version {{ "{{" }} rancher_version {{ "}}" }}
+        --version {{"{{"}} rancher_version {{"}}"}}
         --kubeconfig /etc/rancher/rke2/rke2.yaml
         --create-namespace
 `

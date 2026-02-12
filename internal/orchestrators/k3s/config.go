@@ -6,20 +6,23 @@ import (
 
 // K3sConfig represents the configuration for K3s orchestrator
 type K3sConfig struct {
-	K3sVersion     string
-	RancherVersion string
-	DeployRancher  bool
-	InitTasks      string
-	JoinTasks      string
-	AddonTasks     string
+	K3sVersion        string
+	RancherVersion    string
+	DeployRancher     bool
+	RancherPrime      bool
+	BootstrapPassword string
+	InitTasks         string
+	JoinTasks         string
+	AddonTasks        string
 }
 
 // NewDefaultK3sConfig returns a K3sConfig with sensible defaults
 func NewDefaultK3sConfig() *K3sConfig {
 	return &K3sConfig{
-		K3sVersion:     "v1.30.3+k3s1",
-		RancherVersion: "2.10.2",
-		DeployRancher:  true,
+		K3sVersion:        "v1.30.3+k3s1",
+		RancherVersion:    "2.10.2",
+		DeployRancher:     true,
+		BootstrapPassword: "admin",
 	}
 }
 
@@ -59,6 +62,12 @@ func FromMap(configMap map[string]interface{}) *K3sConfig {
 	}
 	if v, ok := configMap["deploy_rancher"].(bool); ok {
 		cfg.DeployRancher = v
+	}
+	if v, ok := configMap["rancher_prime"].(bool); ok {
+		cfg.RancherPrime = v
+	}
+	if v, ok := configMap["rancher_bootstrap_password"].(string); ok && v != "" {
+		cfg.BootstrapPassword = v
 	}
 
 	return cfg

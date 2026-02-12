@@ -17,6 +17,8 @@ logs/
 # Configuration files with secrets
 config.yaml
 clusters.yaml
+profiles.yaml
+cloud-credentials.yaml
 
 # IDE and editor files
 .vscode/

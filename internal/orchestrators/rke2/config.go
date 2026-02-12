@@ -6,12 +6,14 @@ import (
 
 // RKE2Config holds RKE2-specific configuration
 type RKE2Config struct {
-	RKE2Version    string
-	RancherVersion string
-	DeployRancher  bool
-	InitTasks      string
-	JoinTasks      string
-	AddonTasks     string
+	RKE2Version       string
+	RancherVersion    string
+	DeployRancher     bool
+	RancherPrime      bool
+	BootstrapPassword string
+	InitTasks         string
+	JoinTasks         string
+	AddonTasks        string
 }
 
 // FromMap creates RKE2Config from a map
@@ -25,6 +27,12 @@ func (c *RKE2Config) FromMap(m map[string]interface{}) {
 	if v, ok := m["deploy_rancher"].(bool); ok {
 		c.DeployRancher = v
 	}
+	if v, ok := m["rancher_prime"].(bool); ok {
+		c.RancherPrime = v
+	}
+	if v, ok := m["rancher_bootstrap_password"].(string); ok {
+		c.BootstrapPassword = v
+	}
 
 	// Apply defaults
 	if c.RKE2Version == "" {
@@ -32,6 +40,9 @@ func (c *RKE2Config) FromMap(m map[string]interface{}) {
 	}
 	if c.RancherVersion == "" {
 		c.RancherVersion = "2.10.2"
+	}
+	if c.BootstrapPassword == "" {
+		c.BootstrapPassword = "admin"
 	}
 	// Default to deploying Rancher if not explicitly set
 	if _, ok := m["deploy_rancher"]; !ok {

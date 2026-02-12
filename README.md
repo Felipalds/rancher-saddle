@@ -1,21 +1,23 @@
-# Go Kubernetes Helper (Rancher Deployment Tool)
+# Go Kubernetes Helper
 
-Automated deployment tool for Rancher/RKE2 clusters on AWS EC2 using OpenTofu and Ansible with an interactive TUI.
+Automated deployment tool for Kubernetes clusters (RKE2/K3s) with Rancher on AWS EC2 using OpenTofu and Ansible, featuring an interactive fullscreen TUI.
 
 ## Features
 
-- 🖥️ **Interactive TUI** - Bubbletea-based terminal interface for configuration
-- ☁️ **AWS EC2 Deployment** - Automated instance provisioning with OpenTofu
-- 🎯 **RKE2 Cluster** - Multi-node Kubernetes cluster setup
-- 🐮 **Rancher Management** - Automatic Rancher server deployment
-- 📝 **Configuration Persistence** - Save and reuse deployment configurations
-- 📊 **Structured Logging** - Detailed deployment logs with Zap
+- **Interactive Fullscreen TUI** - Bubbletea-based terminal interface with live log panel
+- **AWS EC2 Deployment** - Automated multi-node instance provisioning with OpenTofu
+- **RKE2 & K3s Support** - Choose between production-grade RKE2 or lightweight K3s
+- **Rancher Management** - Deploy Rancher (standard or Prime) with configurable bootstrap password
+- **Multi-Cluster Management** - Create, monitor, and delete clusters independently
+- **Live Deployment Logs** - Real-time log viewer occupying 33% of the screen
+- **Credentials & Profiles** - Save and reuse AWS credentials and infrastructure profiles
+- **Infrastructure Cleanup** - Delete clusters with full `tofu destroy` and config removal
 
 ## Prerequisites
 
 ### Required Tools
-- [OpenTofu](https://opentofu.org/) or Terraform
-- [Ansible](https://www.ansible.com/)
+- [OpenTofu](https://opentofu.org/) (or Terraform) - `tofu` command in PATH
+- [Ansible](https://www.ansible.com/) - `ansible-playbook` command in PATH
 - Go 1.24.9+
 - AWS Account with appropriate permissions
 
@@ -24,285 +26,207 @@ Automated deployment tool for Rancher/RKE2 clusters on AWS EC2 using OpenTofu an
 - Existing VPC with subnet
 - Security group with required ports:
   - SSH (22)
+  - HTTP/HTTPS (80, 443)
   - Kubernetes API (6443)
-  - RKE2 supervisor (9345)
-  - Rancher UI (80, 443)
+  - RKE2 supervisor (9345) / K3s (10250)
 - EC2 key pair for SSH access
 
 ## Installation
 
 ```bash
-# Clone the repository
 git clone https://github.com/Felipalds/go-kubernetes-helper.git
 cd go-kubernetes-helper
-
-# Build the application
 go build -o go-kubernetes-helper
-
-# Or run directly
-go run main.go
 ```
 
 ## Usage
 
-### Quick Start
+### Fullscreen TUI (Recommended)
 
 ```bash
-# Create a new cluster with interactive TUI
+./go-kubernetes-helper
+```
+
+The TUI provides a fullscreen experience with:
+
+- **Cluster List** - Table showing all clusters with name, status, nodes, provider, region, Rancher URL, and age
+- **Create Form** - 19-field form for full cluster configuration
+- **Live Logs** - Press Enter on a cluster to show real-time deployment logs (33% of screen)
+- **Delete** - Press `d` to destroy infrastructure and remove cluster
+- **Auto-refresh** - Cluster status and logs update every second
+
+#### TUI Keybindings
+
+| Key | Action |
+|-----|--------|
+| `n` / `c` | Create new cluster |
+| `d` | Delete selected cluster |
+| `r` | Manual refresh |
+| `Enter` | Toggle log viewer |
+| `x` | Manage credentials |
+| `Ctrl+P` | Manage profiles |
+| `?` | Help |
+| `q` / `Ctrl+C` | Quit |
+
+#### Create Form Fields
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| Provider | AWS | Cloud provider |
+| Credentials | - | Saved AWS credential set |
+| K8s Distribution | RKE2 | RKE2 or K3s |
+| Cluster Name | my-cluster | Unique cluster identifier |
+| Node Prefix | k8s-node | EC2 instance name prefix |
+| Region | us-east-1 | AWS region |
+| Subnet ID | - | VPC subnet |
+| Security Group ID | - | Security group |
+| AMI ID | - | Ubuntu 22.04 recommended |
+| Instance Type | t3.xlarge | EC2 instance type |
+| Instance Count | 3 | Number of nodes (HA) |
+| SSH Key Name | - | AWS key pair name |
+| SSH Private Key Path | - | Path to .pem file |
+| SSH User | ubuntu | SSH username |
+| K8s Version | v1.33.7+rke2r1 | Distribution version |
+| Deploy Rancher | No | Enable Rancher deployment |
+| Rancher Prime | No | Use Rancher Prime (SUSE registry) |
+| Rancher Version | 2.11.7 | Rancher chart version |
+| Bootstrap Password | admin | Rancher initial admin password |
+
+### CLI Commands
+
+```bash
+# Create cluster (opens TUI form)
 ./go-kubernetes-helper create my-cluster
 
 # List all clusters
 ./go-kubernetes-helper list
 
-# Delete a cluster
+# Delete cluster (with confirmation)
 ./go-kubernetes-helper delete my-cluster
-```
-
-### Available Commands
-
-#### `create [cluster-name]`
-Creates a new Rancher cluster with interactive configuration.
-
-```bash
-# Create with inline name
-./go-kubernetes-helper create production
-
-# Create with --name flag
-./go-kubernetes-helper create --name staging
-
-# Create with custom config file
-./go-kubernetes-helper create dev --config dev-config.json
-```
-
-#### `list`
-Lists all managed clusters with their status.
-
-```bash
-./go-kubernetes-helper list
-```
-
-Output example:
-```
-NAME          STATUS     NODES   REGION      CREATED   RANCHER URL
-production    running    3       us-west-2   2h        https://ec2-xx-xx-xx-xx.compute.amazonaws.com/dashboard
-staging       running    1       us-east-1   5d        https://ec2-yy-yy-yy-yy.compute.amazonaws.com/dashboard
-```
-
-#### `delete <cluster-name>`
-Deletes a cluster and all its AWS resources.
-
-```bash
-# Delete with confirmation prompt
-./go-kubernetes-helper delete staging
 
 # Delete without confirmation
-./go-kubernetes-helper delete staging --force
+./go-kubernetes-helper delete my-cluster --force
+
+# List available providers
+./go-kubernetes-helper list-providers
+
+# List available orchestrators
+./go-kubernetes-helper list-orchestrators
 ```
 
-### TUI Navigation
+## How It Works
 
-- **Tab / Shift+Tab** - Move between fields
-- **Arrow Keys** - Navigate up/down
-- **Enter** - Submit form or move to next field
-- **Ctrl+C / ESC** - Cancel deployment
+### Deployment Flow
 
-### Configuration Fields
+1. User configures cluster via TUI form
+2. Configuration saved to `config.yaml`
+3. OpenTofu provisions EC2 instances (`clusters/<name>/main.tf`)
+4. SSH readiness check on all instances
+5. Ansible inventory generated (`clusters/<name>/hosts.ini`)
+   - First node in `[init]` group (control plane + Rancher host)
+   - Remaining nodes in `[join]` group (HA members)
+6. Ansible playbook generated and executed (`clusters/<name>/site.yml`)
+   - Installs RKE2/K3s on init node
+   - Joins remaining nodes to cluster
+   - Deploys cert-manager (v1.17.2) and Rancher (if enabled)
+7. Cluster status updates to `running`, Rancher URL shown in table
 
-The TUI will prompt for:
-- AWS Access Key
-- AWS Secret Key (masked)
-- AWS Region (default: us-east-1)
-- Subnet ID
-- Security Group ID
-- SSH Key Name
-- SSH Private Key Path
-- Node Prefix (default: rancher-node)
-- AMI ID (default: Ubuntu 22.04 LTS)
-- Instance Count (default: 1)
-- RKE2 Version (default: v1.33.7+rke2r1)
-- Rancher Version (default: 2.10.2)
+### Delete Flow
 
-### Deployment Process
+1. User presses `d` and confirms
+2. Status set to `deleting` (visible in TUI immediately)
+3. Background goroutine runs `tofu destroy -auto-approve`
+4. Build directory removed (`clusters/<name>/`)
+5. Cluster entry removed from `config.yaml`
+6. TUI auto-refreshes to reflect changes
 
-The tool automatically:
-1. Generates OpenTofu configuration
-2. Provisions EC2 instances
-3. Creates Ansible inventory
-4. Installs RKE2 on all nodes
-5. Deploys Rancher on the first node
+### Rancher Prime vs Standard
 
-Deployment typically takes 6-17 minutes.
+When **Rancher Prime** is enabled:
+- Helm repo: `https://charts.rancher.com/server-charts/prime`
+- Container image: `registry.suse.com/rancher/rancher`
+- System default registry: `registry.suse.com`
 
-## Configuration File
+When **standard Rancher** (default):
+- Helm repo: `https://releases.rancher.com/server-charts/latest`
+- Default upstream container images
 
-Configuration is stored in JSON format:
+## Configuration Files
 
-```json
-{
-  "aws_access_key": "AKIA...",
-  "aws_secret_key": "...",
-  "aws_region": "us-west-2",
-  "subnet_id": "subnet-...",
-  "security_group_id": "sg-...",
-  "ssh_key_name": "my-key",
-  "ssh_private_key_path": "~/Downloads/my-key.pem",
-  "node_prefix": "rancher-lrosa",
-  "ami": "ami-...",
-  "instance_count": 3,
-  "rke2_version": "v1.33.7+rke2r1",
-  "rancher_version": "2.12.0"
-}
-```
-
-⚠️ **Security Warning**: The config file contains AWS credentials. Never commit it to version control!
-
-## Cluster State Management
-
-Cluster state is persisted in `~/.go-kubernetes-helper/clusters.json`. This file tracks:
-- Cluster name and status (creating, running, failed, deleting)
-- Configuration used for deployment
-- Build directory location
-- Instance IPs and DNS names
-- Rancher dashboard URL
-- Creation and update timestamps
-
-Example cluster state:
-```json
-{
-  "production": {
-    "name": "production",
-    "status": "running",
-    "config": { /* deployment config */ },
-    "build_dir": "clusters/production",
-    "created_at": "2026-02-09T10:30:00Z",
-    "updated_at": "2026-02-09T10:45:00Z",
-    "instance_ips": ["54.x.x.x", "54.x.x.x", "54.x.x.x"],
-    "instance_dns": ["ec2-xx-xx-xx-xx.compute.amazonaws.com", ...],
-    "rancher_url": "https://ec2-xx-xx-xx-xx.compute.amazonaws.com/dashboard"
-  }
-}
-```
+| File | Purpose |
+|------|---------|
+| `config.yaml` | Cluster configurations (auto-generated, contains secrets - 0600) |
+| `cloud-credentials.yaml` | Saved AWS credentials (0600) |
+| `profiles.yaml` | Saved infrastructure profiles |
+| `clusters/<name>/` | Per-cluster build directory (Terraform state, playbooks) |
+| `logs/<name>.log` | Per-cluster deployment/deletion logs |
 
 ## Project Structure
 
 ```
-.
-├── cmd/                       # Command implementations
-│   └── tui.go                # TUI entry point
-├── internal/                 # Internal packages
-│   ├── cluster/              # Cluster state management
-│   │   ├── state.go         # Cluster state store
-│   │   └── commands.go      # List/create/delete commands
-│   ├── generator/            # Tofu/Ansible generators
-│   ├── model/                # Data models
-│   ├── tui/                  # TUI components
-│   ├── utils/                # Utilities
-│   └── workflow/             # Deployment orchestration
-├── CONTEXT/                  # AI context documentation
-├── clusters/                 # Cluster-specific build dirs (gitignored)
-│   ├── production/           # Per-cluster infrastructure
-│   │   ├── main.tf          # OpenTofu configuration
-│   │   ├── site.yml         # Ansible playbook
-│   │   ├── hosts.ini        # Ansible inventory
-│   │   └── *.tfstate        # Infrastructure state
-│   └── staging/
-│       └── ...
-├── logs/                     # Log files (gitignored)
-│   ├── deployment.log        # Main deployment logs
-│   └── *_error.log           # Command-specific error logs
-├── config.json               # User configuration
-├── main.go                   # Application entry point
-├── .gitignore                # Git ignore patterns
-└── README.md                 # This file
+go-kubernetes-helper/
+├── main.go                           # Entry point & CLI commands
+├── internal/
+│   ├── config/                       # Configuration management
+│   │   ├── clusters.go              # ClusterConfig, RancherSection, load/save
+│   │   ├── config.go                # Modern Config format
+│   │   └── profiles.go             # Infrastructure profiles
+│   ├── core/                         # Interfaces & registry
+│   │   ├── interfaces.go           # Provider/Orchestrator interfaces
+│   │   └── registry.go             # Component registry
+│   ├── credentials/                  # Cloud credential management
+│   ├── generator/                    # Template rendering
+│   ├── orchestrators/
+│   │   ├── rke2/                    # RKE2 orchestrator + Ansible templates
+│   │   └── k3s/                     # K3s orchestrator + Ansible templates
+│   ├── providers/
+│   │   └── aws/                     # AWS provider + Terraform templates
+│   ├── tui/                          # Terminal UI
+│   │   ├── root.go                  # State machine & layout
+│   │   ├── footer.go               # Footer with log panel
+│   │   └── views/
+│   │       ├── clusterlist.go      # Cluster table with auto-refresh
+│   │       ├── createform.go       # 19-field creation form
+│   │       ├── deletemodal.go      # Delete confirmation + tofu destroy
+│   │       ├── color_helper.go     # Status colors & formatting
+│   │       ├── credentialsform.go  # Credentials CRUD
+│   │       ├── credentialslist.go  # Credentials list
+│   │       ├── profilesform.go    # Profiles CRUD
+│   │       └── profileslist.go    # Profiles list
+│   └── workflow/                     # Deployment orchestration
+├── clusters/                         # Per-cluster build dirs (gitignored)
+├── logs/                             # Deployment logs (gitignored)
+├── CONTEXT.md                        # Detailed project documentation
+└── CONTEXT/README.md                 # Future planning documents
 ```
-
-Cluster state is stored in: `~/.go-kubernetes-helper/clusters.json`
-
-## Logs
-
-Deployment logs are written to the `logs/` directory:
-- `logs/deployment.log` - Structured Zap logs with full command output
-- `logs/tofu_error.log` - OpenTofu error output (if any)
-- `logs/ansible-playbook_error.log` - Ansible error output (if any)
-
-## Accessing Rancher
-
-After successful deployment:
-
-1. Get the first node's DNS name from the output
-2. Navigate to `https://<first-node-dns>` in your browser (e.g., `https://ec2-X-X-X-X.compute-1.amazonaws.com`)
-3. Login with:
-   - Username: `admin`
-   - Password: `admin` (set during deployment)
-
-## Development
-
-### Tech Stack
-
-- **Language**: Go 1.24.9
-- **TUI**: Bubbletea, Bubbles, Lipgloss
-- **CLI**: Cobra
-- **Logging**: Zap
-- **IaC**: OpenTofu
-- **Config Mgmt**: Ansible
-
-### Building from Source
-
-```bash
-# Install dependencies
-go mod download
-
-# Build
-go build -o go-kubernetes-helper
-
-# Run tests (if available)
-go test ./...
-```
-
-## Documentation
-
-Detailed documentation is available in `CONTEXT/`:
-- [Project Overview](CONTEXT/PROJECT_OVERVIEW.md) - Architecture and workflow
-- [Features](CONTEXT/FEATURES.md) - Feature documentation
-- [Architecture](CONTEXT/ARCHITECTURE.md) - Technical design
-- [Quick Reference](CONTEXT/QUICK_REFERENCE.md) - Common tasks
 
 ## Troubleshooting
 
 ### OpenTofu Errors
-- Check AWS credentials are valid
-- Verify subnet and security group exist
-- Ensure IAM permissions are sufficient
+- Verify AWS credentials are valid
+- Check subnet and security group exist in the specified region
+- Ensure IAM permissions include EC2 full access
 
 ### Ansible Errors
-- Verify SSH key path is correct
+- Verify SSH key path is correct and has 0600 permissions
 - Check security group allows SSH (port 22)
-- Wait for EC2 instances to fully initialize
+- Check logs: `logs/<cluster-name>.log`
 
-### Connection Issues
-- Security group must allow ingress on required ports
-- Instances need public IPs for external access
-- Check VPC routing and internet gateway
+### Only 1 Node Created
+- Ensure Instance Count field is set (default: 3)
+- This was a known bug (type mismatch in config passing) - fixed in v0.5
+
+### Rancher Access
+- Use the DNS name shown in the Rancher URL column
+- Wait 5-10 minutes after deployment for Rancher to initialize
+- Default login: admin / (your bootstrap password)
 
 ## Security Considerations
 
-- Store AWS credentials securely (use AWS credential chain when possible)
-- Rotate access keys regularly
-- Use restrictive security groups
-- Keep private keys secure (0600 permissions)
-- Never commit `config.json` to version control
-
-## Contributing
-
-Contributions are welcome! Please:
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Submit a pull request
-
-## License
-
-[Add your license here]
+- `config.yaml` and `cloud-credentials.yaml` contain secrets - never commit to git
+- All credential files use 0600 permissions
+- SSH private keys should have 0600 permissions
+- Use restrictive security groups in production
 
 ## Author
 
