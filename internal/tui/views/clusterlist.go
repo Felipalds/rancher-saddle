@@ -114,7 +114,7 @@ func (m ClusterListModel) Update(msg tea.Msg) (ClusterListModel, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "x":
+		case "ctrl+x":
 			// Navigate to credentials management
 			return m, func() tea.Msg {
 				return StateChangeMsg{NewState: StateCredentialsList}
@@ -126,7 +126,7 @@ func (m ClusterListModel) Update(msg tea.Msg) (ClusterListModel, tea.Cmd) {
 				return StateChangeMsg{NewState: StateProfilesList}
 			}
 
-		case "a":
+		case "ctrl+a":
 			// Navigate to AMI catalog management
 			return m, func() tea.Msg {
 				return StateChangeMsg{NewState: StateAMIsList}
@@ -138,7 +138,7 @@ func (m ClusterListModel) Update(msg tea.Msg) (ClusterListModel, tea.Cmd) {
 				return StateChangeMsg{NewState: StateCreateForm}
 			}
 
-		case "d":
+		case "x", "d":
 			// Delete selected cluster
 			if len(m.clusterNames) > 0 {
 				selectedRow := m.table.Cursor()

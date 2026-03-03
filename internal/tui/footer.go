@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/Felipalds/go-kubernetes-helper/internal/tui/views"
-	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -15,7 +14,6 @@ import (
 type FooterModel struct {
 	width  int
 	height int
-	help   help.Model
 }
 
 // keyMap defines keybindings for each state
@@ -31,19 +29,6 @@ type keyMap struct {
 	Quit     key.Binding
 }
 
-// ShortHelp returns keybindings to show in the mini help view
-func (k keyMap) ShortHelp() []key.Binding {
-	return []key.Binding{k.Help, k.Quit}
-}
-
-// FullHelp returns keybindings for the expanded help view
-func (k keyMap) FullHelp() [][]key.Binding {
-	return [][]key.Binding{
-		{k.Up, k.Down, k.Enter},
-		{k.New, k.Delete, k.Refresh},
-		{k.Back, k.Help, k.Quit},
-	}
-}
 
 var (
 	clusterListKeys = keyMap{
@@ -57,23 +42,23 @@ var (
 		),
 		Enter: key.NewBinding(
 			key.WithKeys("enter"),
-			key.WithHelp("enter", "show/hide logs"),
+			key.WithHelp("enter", "logs"),
 		),
 		New: key.NewBinding(
-			key.WithKeys("n", "c"),
+			key.WithKeys("n"),
 			key.WithHelp("n", "new cluster"),
 		),
 		Delete: key.NewBinding(
-			key.WithKeys("d"),
-			key.WithHelp("d", "delete"),
+			key.WithKeys("x", "d"),
+			key.WithHelp("x/d", "delete"),
 		),
 		Refresh: key.NewBinding(
 			key.WithKeys("r"),
 			key.WithHelp("r", "refresh"),
 		),
 		Back: key.NewBinding(
-			key.WithKeys("x", "ctrl+p", "a"),
-			key.WithHelp("x/ctrl+p/a", "creds/profiles/amis"),
+			key.WithKeys("ctrl+x", "ctrl+p", "ctrl+a"),
+			key.WithHelp("ctrl+x/ctrl+p/ctrl+a", "creds/profiles/amis"),
 		),
 		Help: key.NewBinding(
 			key.WithKeys("?"),
@@ -316,18 +301,12 @@ var (
 
 // NewFooterModel creates a new footer
 func NewFooterModel() FooterModel {
-	h := help.New()
-	h.ShowAll = false
-	return FooterModel{
-		width: 80,
-		help:  h,
-	}
+	return FooterModel{width: 80}
 }
 
 // SetWidth updates the footer width
 func (f *FooterModel) SetWidth(width int) {
 	f.width = width
-	f.help.Width = width - 4
 }
 
 // SetHeight updates the total terminal height (used to calculate log panel size)
@@ -335,7 +314,7 @@ func (f *FooterModel) SetHeight(height int) {
 	f.height = height
 }
 
-// ViewForState renders the footer with context-aware keybindings
+// ViewForState renders the footer with all keybindings for the current state.
 func (f FooterModel) ViewForState(state views.AppState) string {
 	footerStyle := lipgloss.NewStyle().
 		Width(f.width).
@@ -346,36 +325,58 @@ func (f FooterModel) ViewForState(state views.AppState) string {
 		BorderForeground(lipgloss.Color("62")).
 		BorderTop(true)
 
-	var keys keyMap
+	var km keyMap
 	switch state {
 	case views.StateClusterList:
-		keys = clusterListKeys
+		km = clusterListKeys
 	case views.StateCreateForm:
-		keys = createFormKeys
+		km = createFormKeys
 	case views.StateDeleteConfirm:
-		keys = deleteModalKeys
+		km = deleteModalKeys
 	case views.StateCredentialsList:
-		keys = credentialsListKeys
+		km = credentialsListKeys
 	case views.StateCredentialsForm:
-		keys = credentialsFormKeys
+		km = credentialsFormKeys
 	case views.StateProfilesList:
-		keys = profilesListKeys
+		km = profilesListKeys
 	case views.StateProfilesForm:
-		keys = profilesFormKeys
+		km = profilesFormKeys
 	case views.StateAMIsList:
-		keys = amisListKeys
+		km = amisListKeys
 	case views.StateAMIsForm:
-		keys = amisFormKeys
+		km = amisFormKeys
 	default:
-		keys = clusterListKeys
+		km = clusterListKeys
 	}
 
-	helpView := f.help.ShortHelpView([]key.Binding{
-		keys.Up, keys.Down, keys.Enter, keys.New, keys.Delete,
-		keys.Refresh, keys.Back, keys.Help, keys.Quit,
-	})
+	return footerStyle.Render(renderBindings(km))
+}
 
-	return footerStyle.Render(helpView)
+// renderBindings formats all non-empty bindings from km as a single line.
+func renderBindings(km keyMap) string {
+	keyStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("86")).
+		Bold(true)
+	sepStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("240"))
+
+	sep := sepStyle.Render(" • ")
+
+	all := []key.Binding{
+		km.Up, km.Down, km.Enter, km.New, km.Delete,
+		km.Refresh, km.Back, km.Help, km.Quit,
+	}
+
+	var parts []string
+	for _, b := range all {
+		h := b.Help()
+		if h.Key == "" || h.Desc == "" {
+			continue
+		}
+		parts = append(parts, keyStyle.Render(h.Key)+" "+h.Desc)
+	}
+
+	return strings.Join(parts, sep)
 }
 
 // ViewWithLogs renders the footer with deployment logs using 33% of the screen
