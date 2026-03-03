@@ -72,8 +72,8 @@ var (
 			key.WithHelp("r", "refresh"),
 		),
 		Back: key.NewBinding(
-			key.WithKeys("x", "ctrl+p"),
-			key.WithHelp("x/ctrl+p", "creds/profiles"),
+			key.WithKeys("x", "ctrl+p", "a"),
+			key.WithHelp("x/ctrl+p/a", "creds/profiles/amis"),
 		),
 		Help: key.NewBinding(
 			key.WithKeys("?"),
@@ -236,6 +236,68 @@ var (
 		),
 	}
 
+	amisListKeys = keyMap{
+		Up: key.NewBinding(
+			key.WithKeys("up", "k"),
+			key.WithHelp("↑/k", "up"),
+		),
+		Down: key.NewBinding(
+			key.WithKeys("down", "j"),
+			key.WithHelp("↓/j", "down"),
+		),
+		Enter: key.NewBinding(
+			key.WithKeys("enter"),
+			key.WithHelp("enter", "edit"),
+		),
+		New: key.NewBinding(
+			key.WithKeys("n", "c"),
+			key.WithHelp("n", "new entry"),
+		),
+		Delete: key.NewBinding(
+			key.WithKeys("d"),
+			key.WithHelp("d", "delete"),
+		),
+		Back: key.NewBinding(
+			key.WithKeys("esc"),
+			key.WithHelp("esc", "back"),
+		),
+		Help: key.NewBinding(
+			key.WithKeys("?"),
+			key.WithHelp("?", "help"),
+		),
+		Quit: key.NewBinding(
+			key.WithKeys("ctrl+c"),
+			key.WithHelp("ctrl+c", "quit"),
+		),
+	}
+
+	amisFormKeys = keyMap{
+		Up: key.NewBinding(
+			key.WithKeys("up", "shift+tab"),
+			key.WithHelp("↑/shift+tab", "prev"),
+		),
+		Down: key.NewBinding(
+			key.WithKeys("down", "tab"),
+			key.WithHelp("↓/tab", "next"),
+		),
+		Enter: key.NewBinding(
+			key.WithKeys("enter"),
+			key.WithHelp("enter", "save"),
+		),
+		Back: key.NewBinding(
+			key.WithKeys("esc"),
+			key.WithHelp("esc", "cancel"),
+		),
+		Help: key.NewBinding(
+			key.WithKeys("?"),
+			key.WithHelp("?", "help"),
+		),
+		Quit: key.NewBinding(
+			key.WithKeys("ctrl+c"),
+			key.WithHelp("ctrl+c", "quit"),
+		),
+	}
+
 	deleteModalKeys = keyMap{
 		Enter: key.NewBinding(
 			key.WithKeys("y", "enter"),
@@ -300,6 +362,10 @@ func (f FooterModel) ViewForState(state views.AppState) string {
 		keys = profilesListKeys
 	case views.StateProfilesForm:
 		keys = profilesFormKeys
+	case views.StateAMIsList:
+		keys = amisListKeys
+	case views.StateAMIsForm:
+		keys = amisFormKeys
 	default:
 		keys = clusterListKeys
 	}

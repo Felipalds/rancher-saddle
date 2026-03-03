@@ -12,6 +12,8 @@ const (
 	StateCredentialsForm
 	StateProfilesList
 	StateProfilesForm
+	StateAMIsList
+	StateAMIsForm
 	StateHelp
 	StateQuitting
 )

@@ -32,6 +32,7 @@ type FormField struct {
 	options     []string // For select fields
 	selected    int      // Selected option index
 	placeholder string
+	hidden      bool
 }
 
 // CreateFormModel represents the simplified cluster creation form
@@ -44,6 +45,7 @@ type CreateFormModel struct {
 	focusIndex  int
 	credentials *credentials.CloudCredentials
 	profiles    *config.ProfilesConfig
+	amis        *config.AMIsConfig
 
 	// Scroll state for tall forms
 	scrollOffset       int
@@ -71,6 +73,7 @@ func (m CreateFormModel) Init() tea.Cmd {
 		textinput.Blink,
 		m.loadCredentials(),
 		m.loadProfiles(),
+		m.loadAMIsForForm(),
 	)
 }
 
@@ -138,12 +141,20 @@ func (m *CreateFormModel) initFields() {
 			input:       m.createTextInput("sg-xxxxx", 50, 50),
 			placeholder: "sg-xxxxx",
 		},
-		// AMI ID
+		// OS Image (distro picker — resolves to an AMI ID at submit time)
+		{
+			fieldType: FieldSelect,
+			label:     "OS Image",
+			options:   []string{"Ubuntu 22.04 LTS", "RHEL 9", "SLES 15 SP5", "Custom"},
+			selected:  0,
+		},
+		// Custom AMI ID (only visible when OS Image == "Custom")
 		{
 			fieldType:   FieldText,
-			label:       "AMI ID",
-			input:       m.createTextInput("ami-0c55b159cbfafe1f0", 50, 50),
-			placeholder: "ami-xxxxx (Ubuntu 22.04 recommended)",
+			label:       "Custom AMI ID",
+			input:       m.createTextInput("ami-xxxxx", 50, 50),
+			placeholder: "ami-xxxxx",
+			hidden:      true,
 		},
 		// Instance Type
 		{
@@ -274,11 +285,8 @@ func (m CreateFormModel) Update(msg tea.Msg) (CreateFormModel, tea.Cmd) {
 			if m.focusIndex < len(m.fields) && m.fields[m.focusIndex].fieldType == FieldText {
 				return m.handleSubmit()
 			}
-			// If on a select field, move to next field
-			m.focusIndex++
-			if m.focusIndex >= len(m.fields) {
-				m.focusIndex = 0
-			}
+			// If on a select field, move to next visible field
+			m.focusIndex = m.nextVisibleField(m.focusIndex)
 			return m, m.updateFocus()
 
 		case "tab", "down":
@@ -291,11 +299,8 @@ func (m CreateFormModel) Update(msg tea.Msg) (CreateFormModel, tea.Cmd) {
 				}
 				return m, nil
 			}
-			// Move to next field
-			m.focusIndex++
-			if m.focusIndex >= len(m.fields) {
-				m.focusIndex = 0
-			}
+			// Move to next visible field
+			m.focusIndex = m.nextVisibleField(m.focusIndex)
 			return m, m.updateFocus()
 
 		case "shift+tab", "up":
@@ -308,11 +313,8 @@ func (m CreateFormModel) Update(msg tea.Msg) (CreateFormModel, tea.Cmd) {
 				}
 				return m, nil
 			}
-			// Move to previous field
-			m.focusIndex--
-			if m.focusIndex < 0 {
-				m.focusIndex = len(m.fields) - 1
-			}
+			// Move to previous visible field
+			m.focusIndex = m.prevVisibleField(m.focusIndex)
 			return m, m.updateFocus()
 
 		case "left":
@@ -321,6 +323,9 @@ func (m CreateFormModel) Update(msg tea.Msg) (CreateFormModel, tea.Cmd) {
 				m.fields[m.focusIndex].selected--
 				if m.fields[m.focusIndex].selected < 0 {
 					m.fields[m.focusIndex].selected = len(m.fields[m.focusIndex].options) - 1
+				}
+				if m.focusIndex == 8 {
+					m.syncCustomAMIVisibility()
 				}
 				return m, nil
 			}
@@ -332,6 +337,9 @@ func (m CreateFormModel) Update(msg tea.Msg) (CreateFormModel, tea.Cmd) {
 				m.fields[m.focusIndex].selected++
 				if m.fields[m.focusIndex].selected >= len(m.fields[m.focusIndex].options) {
 					m.fields[m.focusIndex].selected = 0
+				}
+				if m.focusIndex == 8 {
+					m.syncCustomAMIVisibility()
 				}
 				return m, nil
 			}
@@ -364,6 +372,20 @@ func (m CreateFormModel) Update(msg tea.Msg) (CreateFormModel, tea.Cmd) {
 	case profilesLoadedForFormMsg:
 		m.profiles = msg.profiles
 		return m, nil
+
+	case amisLoadedForFormMsg:
+		m.amis = msg.amis
+		if m.amis != nil {
+			distros := m.amis.ListDistros()
+			options := append(distros, "Custom")
+			m.fields[8].options = options
+			// Keep selection in bounds
+			if m.fields[8].selected >= len(options) {
+				m.fields[8].selected = 0
+			}
+			m.syncCustomAMIVisibility()
+		}
+		return m, nil
 	}
 
 	// Update focused text input
@@ -389,17 +411,27 @@ func (m CreateFormModel) handleSubmit() (CreateFormModel, tea.Cmd) {
 	region := m.fields[5].input.Value()
 	subnet := m.fields[6].input.Value()
 	securityGroup := m.fields[7].input.Value()
-	ami := m.fields[8].input.Value()
-	instanceType := m.fields[9].input.Value()
-	instanceCountStr := m.fields[10].input.Value()
-	sshKeyName := m.fields[11].input.Value()
-	sshPrivateKeyPath := m.fields[12].input.Value()
-	sshUser := m.fields[13].input.Value()
-	k8sVersion := m.fields[14].input.Value()
-	deployRancher := m.fields[15].options[m.fields[15].selected] == "Yes"
-	rancherPrime := m.fields[16].options[m.fields[16].selected] == "Yes"
-	rancherVersion := m.fields[17].input.Value()
-	bootstrapPassword := m.fields[18].input.Value()
+	osImageOption := m.fields[8].options[m.fields[8].selected]
+	var ami string
+	if osImageOption == "Custom" {
+		ami = m.fields[9].input.Value()
+	} else if m.amis != nil {
+		resolvedRegion := region
+		if resolvedRegion == "" {
+			resolvedRegion = "us-east-1"
+		}
+		ami, _ = m.amis.GetAMI(osImageOption, resolvedRegion)
+	}
+	instanceType := m.fields[10].input.Value()
+	instanceCountStr := m.fields[11].input.Value()
+	sshKeyName := m.fields[12].input.Value()
+	sshPrivateKeyPath := m.fields[13].input.Value()
+	sshUser := m.fields[14].input.Value()
+	k8sVersion := m.fields[15].input.Value()
+	deployRancher := m.fields[16].options[m.fields[16].selected] == "Yes"
+	rancherPrime := m.fields[17].options[m.fields[17].selected] == "Yes"
+	rancherVersion := m.fields[18].input.Value()
+	bootstrapPassword := m.fields[19].input.Value()
 
 	// Validate required fields
 	if clusterName == "" {
@@ -542,7 +574,7 @@ func (m CreateFormModel) createCluster(name, provider, credential, distro, versi
 func (m *CreateFormModel) updateFocus() tea.Cmd {
 	for i := range m.fields {
 		if m.fields[i].fieldType == FieldText {
-			if i == m.focusIndex {
+			if i == m.focusIndex && !m.fields[i].hidden {
 				m.fields[i].input.Focus()
 			} else {
 				m.fields[i].input.Blur()
@@ -550,6 +582,43 @@ func (m *CreateFormModel) updateFocus() tea.Cmd {
 		}
 	}
 	return nil
+}
+
+// syncCustomAMIVisibility shows/hides field[9] based on the OS Image selection.
+// "Custom" is always the last option in field[8].
+func (m *CreateFormModel) syncCustomAMIVisibility() {
+	customIdx := len(m.fields[8].options) - 1
+	isCustom := m.fields[8].selected == customIdx
+	m.fields[9].hidden = !isCustom
+	if m.fields[9].hidden {
+		m.fields[9].input.Blur()
+	}
+}
+
+// nextVisibleField returns the next non-hidden field index after `from`,
+// wrapping around to 0 when the end is reached.
+func (m *CreateFormModel) nextVisibleField(from int) int {
+	n := len(m.fields)
+	for step := 1; step <= n; step++ {
+		idx := (from + step) % n
+		if !m.fields[idx].hidden {
+			return idx
+		}
+	}
+	return from
+}
+
+// prevVisibleField returns the previous non-hidden field index before `from`,
+// wrapping around to the last field when the start is reached.
+func (m *CreateFormModel) prevVisibleField(from int) int {
+	n := len(m.fields)
+	for step := 1; step <= n; step++ {
+		idx := (from - step + n) % n
+		if !m.fields[idx].hidden {
+			return idx
+		}
+	}
+	return from
 }
 
 func (m CreateFormModel) loadCredentials() tea.Cmd {
@@ -566,21 +635,49 @@ func (m CreateFormModel) loadProfiles() tea.Cmd {
 	}
 }
 
+func (m CreateFormModel) loadAMIsForForm() tea.Cmd {
+	return func() tea.Msg {
+		amis, _ := config.LoadAMIs("amis.yaml")
+		return amisLoadedForFormMsg{amis: amis}
+	}
+}
+
 func (m *CreateFormModel) loadProfileIntoForm(profileName string) {
 	profile, err := m.profiles.GetProfile(profileName)
 	if err != nil {
 		return
 	}
 
-	// Load profile values into form fields (indices: 5=region, 6=subnet, 7=sg, 8=ami, 9=instance type, 11=ssh key, 12=ssh path, 13=ssh user)
+	// Load profile values into form fields
 	m.fields[5].input.SetValue(profile.Region)
 	m.fields[6].input.SetValue(profile.SubnetID)
 	m.fields[7].input.SetValue(profile.SecurityGroupID)
-	m.fields[8].input.SetValue(profile.AMI)
-	m.fields[9].input.SetValue(profile.InstanceType)
-	m.fields[11].input.SetValue(profile.SSHKeyName)
-	m.fields[12].input.SetValue(profile.SSHPrivateKeyPath)
-	m.fields[13].input.SetValue(profile.SSHUser)
+
+	// Reverse-lookup the AMI to see if it matches a known distro
+	customIdx := len(m.fields[8].options) - 1 // "Custom" is always last
+	if m.amis != nil {
+		if distro, found := m.amis.FindDistro(profile.AMI, profile.Region); found {
+			for i, opt := range m.fields[8].options {
+				if opt == distro {
+					m.fields[8].selected = i
+					break
+				}
+			}
+			m.fields[9].input.SetValue("")
+		} else {
+			m.fields[8].selected = customIdx
+			m.fields[9].input.SetValue(profile.AMI)
+		}
+	} else {
+		m.fields[8].selected = customIdx
+		m.fields[9].input.SetValue(profile.AMI)
+	}
+	m.syncCustomAMIVisibility()
+
+	m.fields[10].input.SetValue(profile.InstanceType)
+	m.fields[12].input.SetValue(profile.SSHKeyName)
+	m.fields[13].input.SetValue(profile.SSHPrivateKeyPath)
+	m.fields[14].input.SetValue(profile.SSHUser)
 }
 
 // View renders the form
@@ -599,6 +696,9 @@ func (m CreateFormModel) View() string {
 
 	// Render all fields
 	for i, field := range m.fields {
+		if field.hidden {
+			continue
+		}
 		focused := i == m.focusIndex
 		label := labelStyle.Render(field.label + ":")
 
@@ -858,4 +958,8 @@ type clusterCreationErrorMsg struct {
 
 type profilesLoadedForFormMsg struct {
 	profiles *config.ProfilesConfig
+}
+
+type amisLoadedForFormMsg struct {
+	amis *config.AMIsConfig
 }

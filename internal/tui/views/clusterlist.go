@@ -126,6 +126,12 @@ func (m ClusterListModel) Update(msg tea.Msg) (ClusterListModel, tea.Cmd) {
 				return StateChangeMsg{NewState: StateProfilesList}
 			}
 
+		case "a":
+			// Navigate to AMI catalog management
+			return m, func() tea.Msg {
+				return StateChangeMsg{NewState: StateAMIsList}
+			}
+
 		case "n", "c":
 			// Navigate to create form
 			return m, func() tea.Msg {

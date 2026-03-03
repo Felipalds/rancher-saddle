@@ -22,6 +22,8 @@ type RootModel struct {
 	credentialsForm views.CredentialsFormModel
 	profilesList    views.ProfilesListModel
 	profilesForm    views.ProfilesFormModel
+	amisList        views.AMIsListModel
+	amisForm        views.AMIsFormModel
 	ready           bool
 }
 
@@ -41,6 +43,8 @@ func NewRootModel() RootModel {
 		credentialsForm: views.NewCredentialsFormModel(),
 		profilesList:    views.NewProfilesListModel(),
 		profilesForm:    views.NewProfilesFormModel(),
+		amisList:        views.NewAMIsListModel(),
+		amisForm:        views.NewAMIsFormModel(),
 		ready:           false,
 	}
 }
@@ -79,6 +83,8 @@ func (m RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.credentialsForm.SetSize(m.width, contentHeight)
 		m.profilesList.SetSize(m.width, contentHeight)
 		m.profilesForm.SetSize(m.width, contentHeight)
+		m.amisList.SetSize(m.width, contentHeight)
+		m.amisForm.SetSize(m.width, contentHeight)
 
 		return m, nil
 
@@ -168,6 +174,19 @@ func (m RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			// Create new profile
 			return m, m.profilesForm.Init()
+		case views.StateAMIsList:
+			return m, m.amisList.Init()
+		case views.StateAMIsForm:
+			if msg.Data != nil {
+				if key, ok := msg.Data.(string); ok && key != "" {
+					// Edit existing entry
+					return m, m.amisForm.SetEditMode(key)
+				}
+			}
+			// Create new entry
+			m.amisForm = views.NewAMIsFormModel()
+			m.amisForm.SetSize(m.width, m.height-5)
+			return m, m.amisForm.Init()
 		}
 		return m, nil
 
@@ -200,6 +219,10 @@ func (m RootModel) routeUpdate(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.profilesList, cmd = m.profilesList.Update(msg)
 	case views.StateProfilesForm:
 		m.profilesForm, cmd = m.profilesForm.Update(msg)
+	case views.StateAMIsList:
+		m.amisList, cmd = m.amisList.Update(msg)
+	case views.StateAMIsForm:
+		m.amisForm, cmd = m.amisForm.Update(msg)
 	}
 
 	return m, cmd
@@ -269,6 +292,12 @@ func (m RootModel) View() string {
 		footer = m.footer.ViewForState(m.state)
 	case views.StateProfilesForm:
 		content = m.profilesForm.View()
+		footer = m.footer.ViewForState(m.state)
+	case views.StateAMIsList:
+		content = m.amisList.View()
+		footer = m.footer.ViewForState(m.state)
+	case views.StateAMIsForm:
+		content = m.amisForm.View()
 		footer = m.footer.ViewForState(m.state)
 	default:
 		content = fmt.Sprintf("State: %s (not implemented)", m.state)
