@@ -3,8 +3,8 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/Felipalds/go-kubernetes-helper/internal/model"
-	"github.com/Felipalds/go-kubernetes-helper/internal/tui"
+	"github.com/Felipalds/rancher-corral/internal/model"
+	"github.com/Felipalds/rancher-corral/internal/tui"
 	tea "github.com/charmbracelet/bubbletea"
 )
 

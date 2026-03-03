@@ -20,6 +20,10 @@ func statusColor(status string) lipgloss.Color {
 		return lipgloss.Color("39")
 	case "deleting":
 		return lipgloss.Color("240")
+	case "upgrading":
+		return lipgloss.Color("39")
+	case "upgrade-failed":
+		return lipgloss.Color("196")
 	default:
 		return lipgloss.Color("240")
 	}
@@ -38,6 +42,10 @@ func formatStatus(status string) string {
 		return lipgloss.NewStyle().Foreground(lipgloss.Color("39")).Render("⟳ creating")
 	case "deleting":
 		return lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render("◐ deleting")
+	case "upgrading":
+		return lipgloss.NewStyle().Foreground(lipgloss.Color("39")).Render("⟳ upgrading")
+	case "upgrade-failed":
+		return lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Render("✗ upgrade-failed")
 	default:
 		return lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render("○ " + status)
 	}

@@ -1,8 +1,8 @@
 package config
 
 import (
-	"github.com/Felipalds/go-kubernetes-helper/internal/core"
-	"github.com/Felipalds/go-kubernetes-helper/internal/model"
+	"github.com/Felipalds/rancher-corral/internal/core"
+	"github.com/Felipalds/rancher-corral/internal/model"
 )
 
 // FromLegacyConfig converts old model.Config to new config.Config

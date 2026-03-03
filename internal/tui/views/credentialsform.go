@@ -3,7 +3,7 @@ package views
 import (
 	"fmt"
 
-	"github.com/Felipalds/go-kubernetes-helper/internal/credentials"
+	"github.com/Felipalds/rancher-corral/internal/credentials"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"

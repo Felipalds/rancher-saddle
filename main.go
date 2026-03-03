@@ -4,14 +4,14 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/Felipalds/go-kubernetes-helper/cmd"
-	"github.com/Felipalds/go-kubernetes-helper/internal/cluster"
-	"github.com/Felipalds/go-kubernetes-helper/internal/config"
-	"github.com/Felipalds/go-kubernetes-helper/internal/core"
-	"github.com/Felipalds/go-kubernetes-helper/internal/model"
-	"github.com/Felipalds/go-kubernetes-helper/internal/orchestrators/k3s"
-	"github.com/Felipalds/go-kubernetes-helper/internal/orchestrators/rke2"
-	"github.com/Felipalds/go-kubernetes-helper/internal/providers/aws"
+	"github.com/Felipalds/rancher-corral/cmd"
+	"github.com/Felipalds/rancher-corral/internal/cluster"
+	"github.com/Felipalds/rancher-corral/internal/config"
+	"github.com/Felipalds/rancher-corral/internal/core"
+	"github.com/Felipalds/rancher-corral/internal/model"
+	"github.com/Felipalds/rancher-corral/internal/orchestrators/k3s"
+	"github.com/Felipalds/rancher-corral/internal/orchestrators/rke2"
+	"github.com/Felipalds/rancher-corral/internal/providers/aws"
 	"github.com/spf13/cobra"
 )
 
@@ -30,7 +30,7 @@ func main() {
 	var force bool
 
 	var rootCmd = &cobra.Command{
-		Use:   "go-kubernetes-helper",
+		Use:   "corral",
 		Short: "Automate Kubernetes cluster deployment on multiple cloud providers",
 		Long:  "A modular tool to automate the deployment and management of Kubernetes clusters across AWS, Azure, GCP, and vSphere using RKE2, K3s, Minikube, or Kubeadm",
 		Run: func(c *cobra.Command, args []string) {

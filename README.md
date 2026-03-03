@@ -1,4 +1,4 @@
-# Go Kubernetes Helper
+# Rancher Corral
 
 Automated deployment tool for Kubernetes clusters (RKE2/K3s) with Rancher on AWS EC2 using OpenTofu and Ansible, featuring an interactive fullscreen TUI.
 
@@ -34,9 +34,9 @@ Automated deployment tool for Kubernetes clusters (RKE2/K3s) with Rancher on AWS
 ## Installation
 
 ```bash
-git clone https://github.com/Felipalds/go-kubernetes-helper.git
-cd go-kubernetes-helper
-go build -o go-kubernetes-helper
+git clone https://github.com/Felipalds/rancher-corral.git
+cd rancher-corral
+go build -o corral
 ```
 
 ## Usage
@@ -44,7 +44,7 @@ go build -o go-kubernetes-helper
 ### Fullscreen TUI (Recommended)
 
 ```bash
-./go-kubernetes-helper
+./corral
 ```
 
 The TUI provides a fullscreen experience with:
@@ -52,7 +52,8 @@ The TUI provides a fullscreen experience with:
 - **Cluster List** - Table showing all clusters with name, status, nodes, provider, region, Rancher URL, and age
 - **Create Form** - 19-field form for full cluster configuration
 - **Live Logs** - Press Enter on a cluster to show real-time deployment logs (33% of screen)
-- **Delete** - Press `d` to destroy infrastructure and remove cluster
+- **Delete** - Press `x` to destroy infrastructure and remove cluster
+- **Upgrade** - Press `u` to upgrade Rancher on a running cluster
 - **Auto-refresh** - Cluster status and logs update every second
 
 #### TUI Keybindings
@@ -60,11 +61,13 @@ The TUI provides a fullscreen experience with:
 | Key | Action |
 |-----|--------|
 | `n` / `c` | Create new cluster |
-| `d` | Delete selected cluster |
+| `x` | Delete selected cluster |
+| `u` | Upgrade Rancher (if deployed) |
 | `r` | Manual refresh |
 | `Enter` | Toggle log viewer |
-| `x` | Manage credentials |
+| `Ctrl+X` | Manage credentials |
 | `Ctrl+P` | Manage profiles |
+| `Ctrl+A` | AMI catalog |
 | `?` | Help |
 | `q` / `Ctrl+C` | Quit |
 
@@ -96,22 +99,22 @@ The TUI provides a fullscreen experience with:
 
 ```bash
 # Create cluster (opens TUI form)
-./go-kubernetes-helper create my-cluster
+./corral create my-cluster
 
 # List all clusters
-./go-kubernetes-helper list
+./corral list
 
 # Delete cluster (with confirmation)
-./go-kubernetes-helper delete my-cluster
+./corral delete my-cluster
 
 # Delete without confirmation
-./go-kubernetes-helper delete my-cluster --force
+./corral delete my-cluster --force
 
 # List available providers
-./go-kubernetes-helper list-providers
+./corral list-providers
 
 # List available orchestrators
-./go-kubernetes-helper list-orchestrators
+./corral list-orchestrators
 ```
 
 ## How It Works
@@ -133,7 +136,7 @@ The TUI provides a fullscreen experience with:
 
 ### Delete Flow
 
-1. User presses `d` and confirms
+1. User presses `x` and confirms
 2. Status set to `deleting` (visible in TUI immediately)
 3. Background goroutine runs `tofu destroy -auto-approve`
 4. Build directory removed (`clusters/<name>/`)
@@ -157,48 +160,33 @@ When **standard Rancher** (default):
 |------|---------|
 | `config.yaml` | Cluster configurations (auto-generated, contains secrets - 0600) |
 | `cloud-credentials.yaml` | Saved AWS credentials (0600) |
-| `profiles.yaml` | Saved infrastructure profiles |
+| `profiles.yaml` | Saved infrastructure profiles (0600) |
+| `amis.yaml` | AMI catalog - distro/region/AMI-ID mappings |
 | `clusters/<name>/` | Per-cluster build directory (Terraform state, playbooks) |
 | `logs/<name>.log` | Per-cluster deployment/deletion logs |
 
-## Project Structure
+## Documentation
 
+- **[docs/architecture.md](docs/architecture.md)** - Technical architecture, package structure, data flows, interfaces
+- **[docs/product.md](docs/product.md)** - Product decisions, feature list, version history, roadmap
+
+## Testing
+
+```bash
+make test           # Run all tests
+make test-cover     # Run tests with coverage report
+make test-verbose   # Run tests with verbose output
+make lint           # Run go vet
 ```
-go-kubernetes-helper/
-├── main.go                           # Entry point & CLI commands
-├── internal/
-│   ├── config/                       # Configuration management
-│   │   ├── clusters.go              # ClusterConfig, RancherSection, load/save
-│   │   ├── config.go                # Modern Config format
-│   │   └── profiles.go             # Infrastructure profiles
-│   ├── core/                         # Interfaces & registry
-│   │   ├── interfaces.go           # Provider/Orchestrator interfaces
-│   │   └── registry.go             # Component registry
-│   ├── credentials/                  # Cloud credential management
-│   ├── generator/                    # Template rendering
-│   ├── orchestrators/
-│   │   ├── rke2/                    # RKE2 orchestrator + Ansible templates
-│   │   └── k3s/                     # K3s orchestrator + Ansible templates
-│   ├── providers/
-│   │   └── aws/                     # AWS provider + Terraform templates
-│   ├── tui/                          # Terminal UI
-│   │   ├── root.go                  # State machine & layout
-│   │   ├── footer.go               # Footer with log panel
-│   │   └── views/
-│   │       ├── clusterlist.go      # Cluster table with auto-refresh
-│   │       ├── createform.go       # 19-field creation form
-│   │       ├── deletemodal.go      # Delete confirmation + tofu destroy
-│   │       ├── color_helper.go     # Status colors & formatting
-│   │       ├── credentialsform.go  # Credentials CRUD
-│   │       ├── credentialslist.go  # Credentials list
-│   │       ├── profilesform.go    # Profiles CRUD
-│   │       └── profileslist.go    # Profiles list
-│   └── workflow/                     # Deployment orchestration
-├── clusters/                         # Per-cluster build dirs (gitignored)
-├── logs/                             # Deployment logs (gitignored)
-├── CONTEXT.md                        # Detailed project documentation
-└── CONTEXT/README.md                 # Future planning documents
-```
+
+Tests use [testify](https://github.com/stretchr/testify) with table-driven patterns. See `internal/config/validation_test.go` for the established style.
+
+## Contributing
+
+1. Write a feature proposal in `feats/<name>.md`
+2. Follow TDD: write tests first, then implement
+3. Run `make test` before submitting
+4. Rename completed features to `feats/x-(completed)-<name>.md`
 
 ## Troubleshooting
 

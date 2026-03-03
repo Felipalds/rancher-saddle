@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"text/template"
 
-	"github.com/Felipalds/go-kubernetes-helper/internal/model"
+	"github.com/Felipalds/rancher-corral/internal/model"
 )
 
 const ansibleTemplate = `

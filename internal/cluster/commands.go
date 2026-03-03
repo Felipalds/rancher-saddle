@@ -9,9 +9,9 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/Felipalds/go-kubernetes-helper/internal/config"
-	"github.com/Felipalds/go-kubernetes-helper/internal/core"
-	"github.com/Felipalds/go-kubernetes-helper/internal/workflow"
+	"github.com/Felipalds/rancher-corral/internal/config"
+	"github.com/Felipalds/rancher-corral/internal/core"
+	"github.com/Felipalds/rancher-corral/internal/workflow"
 )
 
 const defaultConfigPath = "config.yaml"
@@ -53,7 +53,7 @@ func ListClusters() error {
 
 	if len(cfg.Clusters) == 0 {
 		fmt.Println("No clusters found.")
-		fmt.Println("\nUse 'go-kubernetes-helper create' to create a new cluster.")
+		fmt.Println("\nUse 'corral create' to create a new cluster.")
 		return nil
 	}
 

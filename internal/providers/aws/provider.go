@@ -7,8 +7,8 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/Felipalds/go-kubernetes-helper/internal/core"
-	"github.com/Felipalds/go-kubernetes-helper/internal/generator"
+	"github.com/Felipalds/rancher-corral/internal/core"
+	"github.com/Felipalds/rancher-corral/internal/generator"
 )
 
 // Provider implements the AWS cloud provider

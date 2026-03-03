@@ -14,6 +14,7 @@ const (
 	StateProfilesForm
 	StateAMIsList
 	StateAMIsForm
+	StateUpgradeForm
 	StateHelp
 	StateQuitting
 )

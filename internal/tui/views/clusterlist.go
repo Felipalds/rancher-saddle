@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Felipalds/go-kubernetes-helper/internal/config"
+	"github.com/Felipalds/rancher-corral/internal/config"
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -148,6 +148,24 @@ func (m ClusterListModel) Update(msg tea.Msg) (ClusterListModel, tea.Cmd) {
 						return StateChangeMsg{
 							NewState: StateDeleteConfirm,
 							Data:     clusterName,
+						}
+					}
+				}
+			}
+
+		case "u":
+			// Upgrade Rancher on selected cluster
+			if len(m.clusterNames) > 0 {
+				selectedRow := m.table.Cursor()
+				if selectedRow < len(m.clusterNames) {
+					clusterName := m.clusterNames[selectedRow]
+					cluster := m.clusters[clusterName]
+					if cluster != nil && cluster.Rancher.Deploy && cluster.Status == "running" {
+						return m, func() tea.Msg {
+							return StateChangeMsg{
+								NewState: StateUpgradeForm,
+								Data:     clusterName,
+							}
 						}
 					}
 				}

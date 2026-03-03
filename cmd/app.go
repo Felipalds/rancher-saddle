@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/Felipalds/go-kubernetes-helper/internal/tui"
+	"github.com/Felipalds/rancher-corral/internal/tui"
 	tea "github.com/charmbracelet/bubbletea"
 )
 

@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Felipalds/go-kubernetes-helper/internal/config"
-	"github.com/Felipalds/go-kubernetes-helper/internal/model"
+	"github.com/Felipalds/rancher-corral/internal/config"
+	"github.com/Felipalds/rancher-corral/internal/model"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )

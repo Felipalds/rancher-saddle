@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Felipalds/go-kubernetes-helper/internal/config"
-	"github.com/Felipalds/go-kubernetes-helper/internal/core"
-	"github.com/Felipalds/go-kubernetes-helper/internal/utils"
+	"github.com/Felipalds/rancher-corral/internal/config"
+	"github.com/Felipalds/rancher-corral/internal/core"
+	"github.com/Felipalds/rancher-corral/internal/utils"
 	"go.uber.org/zap"
 )
 

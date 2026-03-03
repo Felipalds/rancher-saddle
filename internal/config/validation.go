@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/Felipalds/go-kubernetes-helper/internal/core"
+	"github.com/Felipalds/rancher-corral/internal/core"
 )
 
 // ExpandPath expands ~ to home directory and resolves relative paths

@@ -5,7 +5,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/Felipalds/go-kubernetes-helper/internal/tui/views"
+	"github.com/Felipalds/rancher-corral/internal/tui/views"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -25,6 +25,7 @@ type keyMap struct {
 	New      key.Binding
 	Delete   key.Binding
 	Refresh  key.Binding
+	Upgrade  key.Binding
 	Help     key.Binding
 	Quit     key.Binding
 }
@@ -55,6 +56,10 @@ var (
 		Refresh: key.NewBinding(
 			key.WithKeys("r"),
 			key.WithHelp("r", "refresh"),
+		),
+		Upgrade: key.NewBinding(
+			key.WithKeys("u"),
+			key.WithHelp("u", "upgrade"),
 		),
 		Back: key.NewBinding(
 			key.WithKeys("ctrl+x", "ctrl+p", "ctrl+a"),
@@ -283,6 +288,33 @@ var (
 		),
 	}
 
+	upgradeFormKeys = keyMap{
+		Up: key.NewBinding(
+			key.WithKeys("up", "shift+tab"),
+			key.WithHelp("↑/shift+tab", "prev"),
+		),
+		Down: key.NewBinding(
+			key.WithKeys("down", "tab"),
+			key.WithHelp("↓/tab", "next"),
+		),
+		Enter: key.NewBinding(
+			key.WithKeys("enter"),
+			key.WithHelp("enter", "upgrade"),
+		),
+		Back: key.NewBinding(
+			key.WithKeys("esc"),
+			key.WithHelp("esc", "cancel"),
+		),
+		Help: key.NewBinding(
+			key.WithKeys("?"),
+			key.WithHelp("?", "help"),
+		),
+		Quit: key.NewBinding(
+			key.WithKeys("ctrl+c"),
+			key.WithHelp("ctrl+c", "quit"),
+		),
+	}
+
 	deleteModalKeys = keyMap{
 		Enter: key.NewBinding(
 			key.WithKeys("y", "enter"),
@@ -345,6 +377,8 @@ func (f FooterModel) ViewForState(state views.AppState) string {
 		km = amisListKeys
 	case views.StateAMIsForm:
 		km = amisFormKeys
+	case views.StateUpgradeForm:
+		km = upgradeFormKeys
 	default:
 		km = clusterListKeys
 	}
@@ -364,7 +398,7 @@ func renderBindings(km keyMap) string {
 
 	all := []key.Binding{
 		km.Up, km.Down, km.Enter, km.New, km.Delete,
-		km.Refresh, km.Back, km.Help, km.Quit,
+		km.Refresh, km.Upgrade, km.Back, km.Help, km.Quit,
 	}
 
 	var parts []string

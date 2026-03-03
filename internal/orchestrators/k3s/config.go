@@ -1,7 +1,7 @@
 package k3s
 
 import (
-	"github.com/Felipalds/go-kubernetes-helper/internal/core"
+	"github.com/Felipalds/rancher-corral/internal/core"
 )
 
 // K3sConfig represents the configuration for K3s orchestrator

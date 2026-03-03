@@ -1,7 +1,7 @@
 package rke2
 
 import (
-	"github.com/Felipalds/go-kubernetes-helper/internal/core"
+	"github.com/Felipalds/rancher-corral/internal/core"
 )
 
 // RKE2Config holds RKE2-specific configuration

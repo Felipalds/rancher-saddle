@@ -3,7 +3,7 @@ package tui
 import (
 	"fmt"
 
-	"github.com/Felipalds/go-kubernetes-helper/internal/tui/views"
+	"github.com/Felipalds/rancher-corral/internal/tui/views"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -24,6 +24,7 @@ type RootModel struct {
 	profilesForm    views.ProfilesFormModel
 	amisList        views.AMIsListModel
 	amisForm        views.AMIsFormModel
+	upgradeForm     views.UpgradeFormModel
 	ready           bool
 }
 
@@ -45,6 +46,7 @@ func NewRootModel() RootModel {
 		profilesForm:    views.NewProfilesFormModel(),
 		amisList:        views.NewAMIsListModel(),
 		amisForm:        views.NewAMIsFormModel(),
+		upgradeForm:     views.NewUpgradeFormModel(),
 		ready:           false,
 	}
 }
@@ -85,6 +87,7 @@ func (m RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.profilesForm.SetSize(m.width, contentHeight)
 		m.amisList.SetSize(m.width, contentHeight)
 		m.amisForm.SetSize(m.width, contentHeight)
+		m.upgradeForm.SetSize(m.width, contentHeight)
 
 		return m, nil
 
@@ -187,6 +190,13 @@ func (m RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.amisForm = views.NewAMIsFormModel()
 			m.amisForm.SetSize(m.width, m.height-5)
 			return m, m.amisForm.Init()
+		case views.StateUpgradeForm:
+			if msg.Data != nil {
+				if clusterName, ok := msg.Data.(string); ok {
+					return m, m.upgradeForm.SetCluster(clusterName)
+				}
+			}
+			return m, nil
 		}
 		return m, nil
 
@@ -223,6 +233,8 @@ func (m RootModel) routeUpdate(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.amisList, cmd = m.amisList.Update(msg)
 	case views.StateAMIsForm:
 		m.amisForm, cmd = m.amisForm.Update(msg)
+	case views.StateUpgradeForm:
+		m.upgradeForm, cmd = m.upgradeForm.Update(msg)
 	}
 
 	return m, cmd
@@ -298,6 +310,9 @@ func (m RootModel) View() string {
 		footer = m.footer.ViewForState(m.state)
 	case views.StateAMIsForm:
 		content = m.amisForm.View()
+		footer = m.footer.ViewForState(m.state)
+	case views.StateUpgradeForm:
+		content = m.upgradeForm.View()
 		footer = m.footer.ViewForState(m.state)
 	default:
 		content = fmt.Sprintf("State: %s (not implemented)", m.state)

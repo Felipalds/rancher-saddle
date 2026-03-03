@@ -1,7 +1,7 @@
 package aws
 
 import (
-	"github.com/Felipalds/go-kubernetes-helper/internal/core"
+	"github.com/Felipalds/rancher-corral/internal/core"
 )
 
 // AWSConfig holds AWS-specific configuration

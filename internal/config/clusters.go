@@ -48,6 +48,8 @@ type RancherSection struct {
 	Deploy            bool   `yaml:"deploy"`
 	Prime             bool   `yaml:"prime"`
 	BootstrapPassword string `yaml:"bootstrap_password"`
+	AuditLog          bool   `yaml:"audit_log,omitempty"`
+	AuditLogLevel     int    `yaml:"audit_log_level,omitempty"`
 }
 
 // SSHSection contains SSH configuration
