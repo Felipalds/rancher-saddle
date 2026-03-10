@@ -6,7 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/Felipalds/rancher-corral/internal/generator"
+	"github.com/Felipalds/rancher-saddle/internal/generator"
 )
 
 // UpgradeConfig holds all parameters needed to upgrade Rancher on a cluster.
@@ -23,6 +23,8 @@ type UpgradeConfig struct {
 	Replicas          int
 	AuditLog          bool
 	AuditLogLevel     int
+	ImageTag          string
+	Debug             bool
 }
 
 // templateData is the struct passed to the Go text/template renderer.
@@ -37,6 +39,8 @@ type templateData struct {
 	Replicas          int
 	AuditLog          bool
 	AuditLogLevel     int
+	ImageTag          string
+	Debug             bool
 	Kubeconfig        string
 	Kubectl           string
 }
@@ -74,6 +78,8 @@ func (r *Runner) templateData() templateData {
 		Replicas:          r.Config.Replicas,
 		AuditLog:          r.Config.AuditLog,
 		AuditLogLevel:     r.Config.AuditLogLevel,
+		ImageTag:          r.Config.ImageTag,
+		Debug:             r.Config.Debug,
 		Kubeconfig:        kubeconfig,
 		Kubectl:           kubectl,
 	}

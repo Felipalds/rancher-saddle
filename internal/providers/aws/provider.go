@@ -7,8 +7,8 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/Felipalds/rancher-corral/internal/core"
-	"github.com/Felipalds/rancher-corral/internal/generator"
+	"github.com/Felipalds/rancher-saddle/internal/core"
+	"github.com/Felipalds/rancher-saddle/internal/generator"
 )
 
 // Provider implements the AWS cloud provider

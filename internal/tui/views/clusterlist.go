@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Felipalds/rancher-corral/internal/config"
+	"github.com/Felipalds/rancher-saddle/internal/config"
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -88,16 +88,18 @@ func (m *ClusterListModel) calculateColumns(totalWidth int) []table.Column {
 	}
 
 	// Fixed minimum widths for short columns, proportional for the rest
-	nameW := usable * 18 / 100
+	nameW := usable * 16 / 100
+	versionW := usable * 10 / 100
 	statusW := usable * 12 / 100
 	nodesW := usable * 8 / 100
 	providerW := usable * 10 / 100
-	regionW := usable * 14 / 100
+	regionW := usable * 12 / 100
 	ageW := usable * 8 / 100
-	urlW := usable - nameW - statusW - nodesW - providerW - regionW - ageW
+	urlW := usable - nameW - versionW - statusW - nodesW - providerW - regionW - ageW
 
 	return []table.Column{
 		{Title: "Name", Width: nameW},
+		{Title: "Version", Width: versionW},
 		{Title: "Status", Width: statusW},
 		{Title: "Nodes", Width: nodesW},
 		{Title: "Provider", Width: providerW},
@@ -259,8 +261,15 @@ func (m *ClusterListModel) updateTable() {
 
 		age := formatAge(cluster.CreatedAt)
 
+		// Rancher version
+		version := "-"
+		if cluster.Rancher.Deploy && cluster.Rancher.Version != "" {
+			version = cluster.Rancher.Version
+		}
+
 		rows = append(rows, table.Row{
 			style.Render(name),
+			style.Render(version),
 			status,
 			style.Render(fmt.Sprintf("%d", cluster.Cluster.InstanceCount)),
 			style.Render(cluster.Provider.Type),

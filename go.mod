@@ -1,4 +1,4 @@
-module github.com/Felipalds/rancher-corral
+module github.com/Felipalds/rancher-saddle
 
 go 1.24.9
 

@@ -1,7 +1,7 @@
 package aws
 
 import (
-	"github.com/Felipalds/rancher-corral/internal/core"
+	"github.com/Felipalds/rancher-saddle/internal/core"
 )
 
 // AWSConfig holds AWS-specific configuration

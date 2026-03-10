@@ -5,7 +5,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/Felipalds/rancher-corral/internal/tui/views"
+	"github.com/Felipalds/rancher-saddle/internal/tui/views"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/lipgloss"
 )

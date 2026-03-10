@@ -75,9 +75,11 @@
     --set rancherImage=registry.suse.com/rancher/rancher
     --set systemDefaultRegistry=registry.suse.com
     --set replicas=1
+    {% if rancher_image_tag %}--set rancherImageTag={{ rancher_image_tag }}{% endif %}
     --version {{ rancher_version }}
     --kubeconfig /etc/rancher/k3s/k3s.yaml
     --create-namespace
+    {% if rancher_debug | bool %}--debug=true{% endif %}
   when: rancher_prime | bool
 
 - name: Install or Upgrade Rancher (Latest)
@@ -87,7 +89,9 @@
     --set hostname={{ rancher_hostname }}
     --set bootstrapPassword={{ bootstrap_password }}
     --set replicas=1
+    {% if rancher_image_tag %}--set rancherImageTag={{ rancher_image_tag }}{% endif %}
     --version {{ rancher_version }}
     --kubeconfig /etc/rancher/k3s/k3s.yaml
     --create-namespace
+    {% if rancher_debug | bool %}--debug=true{% endif %}
   when: not (rancher_prime | bool)

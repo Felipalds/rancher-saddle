@@ -56,3 +56,6 @@ Thumbs.db
 *.pem
 *.key
 id_rsa*
+
+# Learning notes
+learning/

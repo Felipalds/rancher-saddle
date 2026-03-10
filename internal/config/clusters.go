@@ -50,6 +50,8 @@ type RancherSection struct {
 	BootstrapPassword string `yaml:"bootstrap_password"`
 	AuditLog          bool   `yaml:"audit_log,omitempty"`
 	AuditLogLevel     int    `yaml:"audit_log_level,omitempty"`
+	ImageTag          string `yaml:"image_tag,omitempty"`
+	Debug             bool   `yaml:"debug,omitempty"`
 }
 
 // SSHSection contains SSH configuration
@@ -162,6 +164,8 @@ func (cc *ClusterConfig) ToModernConfig() *Config {
 	cfg.OrchestratorConfig["deploy_rancher"] = cc.Rancher.Deploy
 	cfg.OrchestratorConfig["rancher_prime"] = cc.Rancher.Prime
 	cfg.OrchestratorConfig["rancher_bootstrap_password"] = cc.Rancher.BootstrapPassword
+	cfg.OrchestratorConfig["rancher_image_tag"] = cc.Rancher.ImageTag
+	cfg.OrchestratorConfig["rancher_debug"] = cc.Rancher.Debug
 
 	return cfg
 }
@@ -201,6 +205,12 @@ func FromModernConfig(cfg *Config) *ClusterConfig {
 		}
 		if v, ok := cfg.OrchestratorConfig["rancher_bootstrap_password"].(string); ok {
 			cc.Rancher.BootstrapPassword = v
+		}
+		if v, ok := cfg.OrchestratorConfig["rancher_image_tag"].(string); ok {
+			cc.Rancher.ImageTag = v
+		}
+		if v, ok := cfg.OrchestratorConfig["rancher_debug"].(bool); ok {
+			cc.Rancher.Debug = v
 		}
 	}
 

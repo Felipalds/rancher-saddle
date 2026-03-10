@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"text/template"
 
-	"github.com/Felipalds/rancher-corral/internal/model"
+	"github.com/Felipalds/rancher-saddle/internal/model"
 )
 
 const tofuTemplate = `

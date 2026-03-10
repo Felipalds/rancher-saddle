@@ -25,6 +25,9 @@
         --set auditLog.enabled={{.AuditLog}}
         --set auditLog.level={{.AuditLogLevel}}
         --set rancherImage=registry.suse.com/rancher/rancher
+        {{- if .ImageTag}}
+        --set rancherImageTag={{.ImageTag}}
+        {{- end}}
         --set "extraEnv[0].name=CATTLE_DEBUG"
         --set "extraEnv[0].value=true"
         --set "extraEnv[1].name=RANCHER_VERSION_TYPE"
@@ -34,6 +37,9 @@
         --version {{.RancherVersion}}
         --kubeconfig {{.Kubeconfig}}
         --create-namespace
+        {{- if .Debug}}
+        --debug=true
+        {{- end}}
       when: {{.Prime}}
 
     - name: Upgrade Rancher (Latest)
@@ -45,9 +51,15 @@
         --set bootstrapPassword={{.BootstrapPassword}}
         --set auditLog.enabled={{.AuditLog}}
         --set auditLog.level={{.AuditLogLevel}}
+        {{- if .ImageTag}}
+        --set rancherImageTag={{.ImageTag}}
+        {{- end}}
         --version {{.RancherVersion}}
         --kubeconfig {{.Kubeconfig}}
         --create-namespace
+        {{- if .Debug}}
+        --debug=true
+        {{- end}}
       when: not {{.Prime}}
 
     - name: Wait for Rancher rollout

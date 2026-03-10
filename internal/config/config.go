@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"os"
 
-	"github.com/Felipalds/rancher-corral/internal/core"
+	"github.com/Felipalds/rancher-saddle/internal/core"
 )
 
 // Config holds the dynamic application configuration for deploying Kubernetes clusters

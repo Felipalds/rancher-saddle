@@ -3,7 +3,7 @@ package tui
 import (
 	"fmt"
 
-	"github.com/Felipalds/rancher-corral/internal/tui/views"
+	"github.com/Felipalds/rancher-saddle/internal/tui/views"
 	tea "github.com/charmbracelet/bubbletea"
 )
 

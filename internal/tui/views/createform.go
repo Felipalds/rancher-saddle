@@ -7,10 +7,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Felipalds/rancher-corral/internal/config"
-	"github.com/Felipalds/rancher-corral/internal/core"
-	"github.com/Felipalds/rancher-corral/internal/credentials"
-	"github.com/Felipalds/rancher-corral/internal/workflow"
+	"github.com/Felipalds/rancher-saddle/internal/config"
+	"github.com/Felipalds/rancher-saddle/internal/core"
+	"github.com/Felipalds/rancher-saddle/internal/credentials"
+	"github.com/Felipalds/rancher-saddle/internal/workflow"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -226,6 +226,20 @@ func (m *CreateFormModel) initFields() {
 			input:       m.createTextInput("admin", 50, 40),
 			placeholder: "admin",
 		},
+		// Image Tag (hotfix)
+		{
+			fieldType:   FieldText,
+			label:       "Image Tag (hotfix)",
+			input:       m.createTextInput("", 60, 50),
+			placeholder: "e.g. v0.0.0-hotfix-abc123.1",
+		},
+		// Debug Mode
+		{
+			fieldType: FieldSelect,
+			label:     "Debug Mode",
+			options:   []string{"No", "Yes"},
+			selected:  0,
+		},
 	}
 
 	// Focus first field
@@ -280,13 +294,12 @@ func (m CreateFormModel) Update(msg tea.Msg) (CreateFormModel, tea.Cmd) {
 				}
 				return m, nil
 			}
-			// For select fields, do nothing (user navigates with arrows)
-			// For text fields, submit the form
-			if m.focusIndex < len(m.fields) && m.fields[m.focusIndex].fieldType == FieldText {
+			// Submit only when the Apply button is focused
+			if m.focusIndex == len(m.fields) {
 				return m.handleSubmit()
 			}
-			// If on a select field, move to next visible field
-			m.focusIndex = m.nextVisibleField(m.focusIndex)
+			// Otherwise, move to next field
+			m.focusIndex = m.nextVisibleFieldOrApply(m.focusIndex)
 			return m, m.updateFocus()
 
 		case "tab", "down":
@@ -299,8 +312,8 @@ func (m CreateFormModel) Update(msg tea.Msg) (CreateFormModel, tea.Cmd) {
 				}
 				return m, nil
 			}
-			// Move to next visible field
-			m.focusIndex = m.nextVisibleField(m.focusIndex)
+			// Move to next visible field (including Apply button)
+			m.focusIndex = m.nextVisibleFieldOrApply(m.focusIndex)
 			return m, m.updateFocus()
 
 		case "shift+tab", "up":
@@ -313,8 +326,8 @@ func (m CreateFormModel) Update(msg tea.Msg) (CreateFormModel, tea.Cmd) {
 				}
 				return m, nil
 			}
-			// Move to previous visible field
-			m.focusIndex = m.prevVisibleField(m.focusIndex)
+			// Move to previous visible field (including Apply button)
+			m.focusIndex = m.prevVisibleFieldOrApply(m.focusIndex)
 			return m, m.updateFocus()
 
 		case "left":
@@ -432,6 +445,8 @@ func (m CreateFormModel) handleSubmit() (CreateFormModel, tea.Cmd) {
 	rancherPrime := m.fields[17].options[m.fields[17].selected] == "Yes"
 	rancherVersion := m.fields[18].input.Value()
 	bootstrapPassword := m.fields[19].input.Value()
+	imageTag := m.fields[20].input.Value()
+	debugMode := m.fields[21].options[m.fields[21].selected] == "Yes"
 
 	// Validate required fields
 	if clusterName == "" {
@@ -494,12 +509,14 @@ func (m CreateFormModel) handleSubmit() (CreateFormModel, tea.Cmd) {
 
 	return m, m.createCluster(clusterName, provider, credential, k8sDistro, k8sVersion,
 		region, subnet, securityGroup, ami, instanceType, nodePrefix, instanceCount,
-		sshKeyName, sshPrivateKeyPath, sshUser, deployRancher, rancherPrime, rancherVersion, bootstrapPassword)
+		sshKeyName, sshPrivateKeyPath, sshUser, deployRancher, rancherPrime, rancherVersion, bootstrapPassword,
+		imageTag, debugMode)
 }
 
 func (m CreateFormModel) createCluster(name, provider, credential, distro, version,
 	region, subnet, securityGroup, ami, instanceType, nodePrefix string, instanceCount int,
-	sshKeyName, sshPrivateKeyPath, sshUser string, deployRancher, rancherPrime bool, rancherVersion, bootstrapPassword string) tea.Cmd {
+	sshKeyName, sshPrivateKeyPath, sshUser string, deployRancher, rancherPrime bool, rancherVersion, bootstrapPassword string,
+	imageTag string, debugMode bool) tea.Cmd {
 	return func() tea.Msg {
 		// Load clusters config
 		cfg, err := config.LoadClustersConfig("config.yaml")
@@ -552,6 +569,8 @@ func (m CreateFormModel) createCluster(name, provider, credential, distro, versi
 				Version:           rancherVersion,
 				Prime:             rancherPrime,
 				BootstrapPassword: bootstrapPassword,
+				ImageTag:          imageTag,
+				Debug:             debugMode,
 			},
 			Status: "creating",
 		}
@@ -577,6 +596,14 @@ func (m *CreateFormModel) updateFocus() tea.Cmd {
 			if i == m.focusIndex && !m.fields[i].hidden {
 				m.fields[i].input.Focus()
 			} else {
+				m.fields[i].input.Blur()
+			}
+		}
+	}
+	// Blur all text inputs when on the Apply button
+	if m.focusIndex == len(m.fields) {
+		for i := range m.fields {
+			if m.fields[i].fieldType == FieldText {
 				m.fields[i].input.Blur()
 			}
 		}
@@ -619,6 +646,48 @@ func (m *CreateFormModel) prevVisibleField(from int) int {
 		}
 	}
 	return from
+}
+
+// nextVisibleFieldOrApply advances to the next visible field, treating
+// len(m.fields) as the Apply button position at the end.
+func (m *CreateFormModel) nextVisibleFieldOrApply(from int) int {
+	// If we're on the Apply button, wrap to the first visible field
+	if from == len(m.fields) {
+		return m.nextVisibleField(len(m.fields) - 1)
+	}
+	// Try to find a visible field after `from`
+	n := len(m.fields)
+	for step := 1; step <= n; step++ {
+		idx := from + step
+		if idx >= n {
+			// Reached the end — land on the Apply button
+			return n
+		}
+		if !m.fields[idx].hidden {
+			return idx
+		}
+	}
+	return n
+}
+
+// prevVisibleFieldOrApply goes back to the previous visible field, treating
+// len(m.fields) as the Apply button position at the end.
+func (m *CreateFormModel) prevVisibleFieldOrApply(from int) int {
+	// If we're on the Apply button, go to the last visible field
+	if from == len(m.fields) {
+		for i := len(m.fields) - 1; i >= 0; i-- {
+			if !m.fields[i].hidden {
+				return i
+			}
+		}
+		return 0
+	}
+	// If we're on the first visible field, wrap to Apply button
+	first := m.nextVisibleField(len(m.fields) - 1)
+	if from == first {
+		return len(m.fields)
+	}
+	return m.prevVisibleField(from)
 }
 
 func (m CreateFormModel) loadCredentials() tea.Cmd {
@@ -730,9 +799,16 @@ func (m CreateFormModel) View() string {
 		content += fieldView + "\n"
 	}
 
+	// Apply button
+	if m.focusIndex == len(m.fields) {
+		content += "\n" + lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("205")).Render("▶ [ Apply ]") + "\n"
+	} else {
+		content += "\n" + lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render("  [ Apply ]") + "\n"
+	}
+
 	help := lipgloss.NewStyle().
 		Faint(true).
-		Render("\nenter: submit • ctrl+p: load profile • esc: cancel • tab/↓: next • shift+tab/↑: prev • ◀/▶: select")
+		Render("\nenter: next/apply • ctrl+p: load profile • esc: cancel • tab/↓: next • shift+tab/↑: prev • ◀/▶: select")
 
 	view := lipgloss.NewStyle().
 		Padding(2, 4).

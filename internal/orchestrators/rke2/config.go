@@ -1,7 +1,7 @@
 package rke2
 
 import (
-	"github.com/Felipalds/rancher-corral/internal/core"
+	"github.com/Felipalds/rancher-saddle/internal/core"
 )
 
 // RKE2Config holds RKE2-specific configuration
@@ -11,6 +11,8 @@ type RKE2Config struct {
 	DeployRancher     bool
 	RancherPrime      bool
 	BootstrapPassword string
+	ImageTag          string
+	Debug             bool
 	InitTasks         string
 	JoinTasks         string
 	AddonTasks        string
@@ -32,6 +34,12 @@ func (c *RKE2Config) FromMap(m map[string]interface{}) {
 	}
 	if v, ok := m["rancher_bootstrap_password"].(string); ok {
 		c.BootstrapPassword = v
+	}
+	if v, ok := m["rancher_image_tag"].(string); ok {
+		c.ImageTag = v
+	}
+	if v, ok := m["rancher_debug"].(bool); ok {
+		c.Debug = v
 	}
 
 	// Apply defaults

@@ -191,6 +191,99 @@ func TestClustersConfig_LoadSaveRoundTrip(t *testing.T) {
 	assert.Equal(t, "running", got.Status)
 }
 
+func TestClusterConfig_ToModernConfig_ImageTagAndDebug(t *testing.T) {
+	cc := &ClusterConfig{
+		Kubernetes: KubernetesSection{Distribution: "rke2"},
+		Rancher: RancherSection{
+			Version:  "2.13.3",
+			Deploy:   true,
+			Prime:    true,
+			ImageTag: "v0.0.0-test-abc123.1",
+			Debug:    true,
+		},
+	}
+
+	cfg := cc.ToModernConfig()
+
+	assert.Equal(t, "v0.0.0-test-abc123.1", cfg.OrchestratorConfig["rancher_image_tag"])
+	assert.Equal(t, true, cfg.OrchestratorConfig["rancher_debug"])
+}
+
+func TestFromModernConfig_ImageTagAndDebug(t *testing.T) {
+	cfg := &Config{
+		Provider:     "aws",
+		Orchestrator: "rke2",
+		OrchestratorConfig: map[string]interface{}{
+			"rancher_version":            "2.13.3",
+			"deploy_rancher":             true,
+			"rancher_image_tag":          "v0.0.0-test-abc123.1",
+			"rancher_debug":              true,
+		},
+	}
+
+	cc := FromModernConfig(cfg)
+
+	assert.Equal(t, "v0.0.0-test-abc123.1", cc.Rancher.ImageTag)
+	assert.Equal(t, true, cc.Rancher.Debug)
+}
+
+func TestClustersConfig_SaveLoad_ImageTagAndDebug(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+
+	original := &ClustersConfig{Clusters: make(map[string]*ClusterConfig)}
+	original.AddCluster("hotfix-cluster", &ClusterConfig{
+		Provider:   ProviderSection{Type: "aws"},
+		Kubernetes: KubernetesSection{Distribution: "rke2"},
+		Rancher: RancherSection{
+			Version:  "2.13.3",
+			Deploy:   true,
+			Prime:    true,
+			ImageTag: "v0.0.0-test-abc123.1",
+			Debug:    true,
+		},
+		Status: "running",
+	})
+
+	err := original.Save(path)
+	require.NoError(t, err)
+
+	loaded, err := LoadClustersConfig(path)
+	require.NoError(t, err)
+
+	got, exists := loaded.GetCluster("hotfix-cluster")
+	assert.True(t, exists)
+	assert.Equal(t, "v0.0.0-test-abc123.1", got.Rancher.ImageTag)
+	assert.Equal(t, true, got.Rancher.Debug)
+}
+
+func TestClustersConfig_SaveLoad_EmptyImageTag(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+
+	original := &ClustersConfig{Clusters: make(map[string]*ClusterConfig)}
+	original.AddCluster("normal-cluster", &ClusterConfig{
+		Provider:   ProviderSection{Type: "aws"},
+		Kubernetes: KubernetesSection{Distribution: "rke2"},
+		Rancher: RancherSection{
+			Version: "2.11.7",
+			Deploy:  true,
+		},
+		Status: "running",
+	})
+
+	err := original.Save(path)
+	require.NoError(t, err)
+
+	loaded, err := LoadClustersConfig(path)
+	require.NoError(t, err)
+
+	got, exists := loaded.GetCluster("normal-cluster")
+	assert.True(t, exists)
+	assert.Equal(t, "", got.Rancher.ImageTag)
+	assert.Equal(t, false, got.Rancher.Debug)
+}
+
 func TestLoadClustersConfig_NonexistentFile(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "nonexistent.yaml")

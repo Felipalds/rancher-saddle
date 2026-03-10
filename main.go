@@ -4,14 +4,14 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/Felipalds/rancher-corral/cmd"
-	"github.com/Felipalds/rancher-corral/internal/cluster"
-	"github.com/Felipalds/rancher-corral/internal/config"
-	"github.com/Felipalds/rancher-corral/internal/core"
-	"github.com/Felipalds/rancher-corral/internal/model"
-	"github.com/Felipalds/rancher-corral/internal/orchestrators/k3s"
-	"github.com/Felipalds/rancher-corral/internal/orchestrators/rke2"
-	"github.com/Felipalds/rancher-corral/internal/providers/aws"
+	"github.com/Felipalds/rancher-saddle/cmd"
+	"github.com/Felipalds/rancher-saddle/internal/cluster"
+	"github.com/Felipalds/rancher-saddle/internal/config"
+	"github.com/Felipalds/rancher-saddle/internal/core"
+	"github.com/Felipalds/rancher-saddle/internal/model"
+	"github.com/Felipalds/rancher-saddle/internal/orchestrators/k3s"
+	"github.com/Felipalds/rancher-saddle/internal/orchestrators/rke2"
+	"github.com/Felipalds/rancher-saddle/internal/providers/aws"
 	"github.com/spf13/cobra"
 )
 

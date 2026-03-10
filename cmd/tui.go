@@ -3,8 +3,8 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/Felipalds/rancher-corral/internal/model"
-	"github.com/Felipalds/rancher-corral/internal/tui"
+	"github.com/Felipalds/rancher-saddle/internal/model"
+	"github.com/Felipalds/rancher-saddle/internal/tui"
 	tea "github.com/charmbracelet/bubbletea"
 )
 

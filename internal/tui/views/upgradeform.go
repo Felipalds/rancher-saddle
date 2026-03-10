@@ -5,8 +5,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/Felipalds/rancher-corral/internal/config"
-	"github.com/Felipalds/rancher-corral/internal/upgrade"
+	"github.com/Felipalds/rancher-saddle/internal/config"
+	"github.com/Felipalds/rancher-saddle/internal/upgrade"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -19,12 +19,13 @@ type UpgradeFormModel struct {
 	clusterName string
 	cluster     *config.ClusterConfig
 
-	// Form fields: 0=version, 1=replicas, 2=auditLogLevel (text inputs)
+	// Form fields: 0=version, 1=replicas, 2=auditLogLevel, 3=imageTag (text inputs)
 	inputs     []textinput.Model
 	focusIndex int
 
-	// Select field for audit log toggle
+	// Select fields
 	auditLogEnabled bool
+	debugEnabled    bool
 }
 
 // NewUpgradeFormModel creates a new upgrade form.
@@ -32,7 +33,7 @@ func NewUpgradeFormModel() UpgradeFormModel {
 	m := UpgradeFormModel{
 		width:  80,
 		height: 20,
-		inputs: make([]textinput.Model, 3),
+		inputs: make([]textinput.Model, 4),
 	}
 
 	// Target Version
@@ -52,6 +53,12 @@ func NewUpgradeFormModel() UpgradeFormModel {
 	m.inputs[2].Placeholder = "1"
 	m.inputs[2].CharLimit = 1
 	m.inputs[2].Width = 10
+
+	// Image Tag (hotfix)
+	m.inputs[3] = textinput.New()
+	m.inputs[3].Placeholder = "e.g. v0.0.0-hotfix-abc123.1"
+	m.inputs[3].CharLimit = 60
+	m.inputs[3].Width = 50
 
 	return m
 }
@@ -96,15 +103,19 @@ func (m UpgradeFormModel) Update(msg tea.Msg) (UpgradeFormModel, tea.Cmd) {
 			}
 
 		case "left", "right":
-			// Toggle audit log when focused on the select row (index 2)
+			// Toggle select fields
 			if m.focusIndex == 2 {
 				m.auditLogEnabled = !m.auditLogEnabled
+				return m, nil
+			}
+			if m.focusIndex == 5 {
+				m.debugEnabled = !m.debugEnabled
 				return m, nil
 			}
 
 		case "tab", "down":
 			m.focusIndex++
-			if m.focusIndex > 4 { // 0=version, 1=replicas, 2=auditLogSelect, 3=auditLogLevel, 4=submit
+			if m.focusIndex > 6 { // 0=version, 1=replicas, 2=auditLogSelect, 3=auditLogLevel, 4=imageTag, 5=debugSelect, 6=submit
 				m.focusIndex = 0
 			}
 			return m, m.updateFocus()
@@ -112,18 +123,18 @@ func (m UpgradeFormModel) Update(msg tea.Msg) (UpgradeFormModel, tea.Cmd) {
 		case "shift+tab", "up":
 			m.focusIndex--
 			if m.focusIndex < 0 {
-				m.focusIndex = 4
+				m.focusIndex = 6
 			}
 			return m, m.updateFocus()
 
 		case "enter":
-			if m.focusIndex == 4 {
+			if m.focusIndex == 6 {
 				// Submit
 				return m, m.startUpgrade()
 			}
 			// Move to next field
 			m.focusIndex++
-			if m.focusIndex > 4 {
+			if m.focusIndex > 6 {
 				m.focusIndex = 0
 			}
 			return m, m.updateFocus()
@@ -143,6 +154,8 @@ func (m UpgradeFormModel) Update(msg tea.Msg) (UpgradeFormModel, tea.Cmd) {
 		if msg.cluster.Rancher.AuditLogLevel > 0 {
 			m.inputs[2].SetValue(fmt.Sprintf("%d", msg.cluster.Rancher.AuditLogLevel))
 		}
+		m.inputs[3].SetValue(msg.cluster.Rancher.ImageTag)
+		m.debugEnabled = msg.cluster.Rancher.Debug
 		m.inputs[0].Focus()
 		return m, nil
 
@@ -215,21 +228,43 @@ func (m UpgradeFormModel) View() string {
 		form += "  " + label + " " + m.inputs[2].View() + "\n"
 	}
 
-	// Submit button
+	// Field 4: Image Tag (hotfix)
+	label = labelStyle.Render("Image Tag (hotfix):")
 	if m.focusIndex == 4 {
-		form += "\n" + lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("205")).Render("▶ [ Upgrade ]") + "\n"
+		form += lipgloss.NewStyle().Foreground(lipgloss.Color("205")).Render("▶ ") + label + " " + m.inputs[3].View() + "\n"
 	} else {
-		form += "\n" + lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render("  [ Upgrade ]") + "\n"
+		form += "  " + label + " " + m.inputs[3].View() + "\n"
 	}
 
-	form += "\n" + lipgloss.NewStyle().Faint(true).Render("tab/enter: next • shift+tab/↑: prev • ◀/▶: toggle • esc: cancel")
+	// Field 5: Debug Mode (select)
+	label = labelStyle.Render("Debug Mode:")
+	debugValue := "No"
+	if m.debugEnabled {
+		debugValue = "Yes"
+	}
+	if m.focusIndex == 5 {
+		form += lipgloss.NewStyle().Foreground(lipgloss.Color("205")).Render("▶ ") + label + " "
+		form += lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("86")).Render(debugValue)
+		form += lipgloss.NewStyle().Faint(true).Render(" ◀ ▶") + "\n"
+	} else {
+		form += "  " + label + " " + debugValue + "\n"
+	}
+
+	// Apply button
+	if m.focusIndex == 6 {
+		form += "\n" + lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("205")).Render("▶ [ Apply ]") + "\n"
+	} else {
+		form += "\n" + lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render("  [ Apply ]") + "\n"
+	}
+
+	form += "\n" + lipgloss.NewStyle().Faint(true).Render("enter: next/apply • shift+tab/↑: prev • ◀/▶: toggle • esc: cancel")
 
 	return lipgloss.NewStyle().Padding(2, 4).Render(form)
 }
 
 func (m *UpgradeFormModel) updateFocus() tea.Cmd {
-	// Text inputs are at focus indices 0, 1, 3. Index 2 is the select, index 4 is submit.
-	inputMap := map[int]int{0: 0, 1: 1, 3: 2} // focusIndex → input index
+	// Text inputs are at focus indices 0, 1, 3, 4. Index 2 is auditLogSelect, 5 is debugSelect, 6 is submit.
+	inputMap := map[int]int{0: 0, 1: 1, 3: 2, 4: 3} // focusIndex → input index
 
 	for fi, ii := range inputMap {
 		if m.focusIndex == fi {
@@ -238,8 +273,8 @@ func (m *UpgradeFormModel) updateFocus() tea.Cmd {
 			m.inputs[ii].Blur()
 		}
 	}
-	// Blur all if on select(2) or submit(4)
-	if m.focusIndex == 2 || m.focusIndex == 4 {
+	// Blur all if on a select or submit
+	if m.focusIndex == 2 || m.focusIndex == 5 || m.focusIndex == 6 {
 		for i := range m.inputs {
 			m.inputs[i].Blur()
 		}
@@ -249,7 +284,7 @@ func (m *UpgradeFormModel) updateFocus() tea.Cmd {
 
 func (m *UpgradeFormModel) updateInputs(msg tea.Msg) tea.Cmd {
 	// Only update the focused text input
-	inputMap := map[int]int{0: 0, 1: 1, 3: 2}
+	inputMap := map[int]int{0: 0, 1: 1, 3: 2, 4: 3}
 	if ii, ok := inputMap[m.focusIndex]; ok {
 		var cmd tea.Cmd
 		m.inputs[ii], cmd = m.inputs[ii].Update(msg)
@@ -265,6 +300,8 @@ func (m UpgradeFormModel) startUpgrade() tea.Cmd {
 	auditLog := m.auditLogEnabled
 	auditLogLevel := 1
 	fmt.Sscanf(m.inputs[2].Value(), "%d", &auditLogLevel)
+	imageTag := m.inputs[3].Value()
+	debug := m.debugEnabled
 
 	replicas := 1
 	fmt.Sscanf(replicasStr, "%d", &replicas)
@@ -312,6 +349,8 @@ func (m UpgradeFormModel) startUpgrade() tea.Cmd {
 			Replicas:          replicas,
 			AuditLog:          auditLog,
 			AuditLogLevel:     auditLogLevel,
+			ImageTag:          imageTag,
+			Debug:             debug,
 		})
 
 		return upgradeFinishedMsg{}
@@ -353,6 +392,8 @@ func runUpgrade(clusterName string, cfg upgrade.UpgradeConfig) {
 			cluster.Rancher.Version = cfg.RancherVersion
 			cluster.Rancher.AuditLog = cfg.AuditLog
 			cluster.Rancher.AuditLogLevel = cfg.AuditLogLevel
+			cluster.Rancher.ImageTag = cfg.ImageTag
+			cluster.Rancher.Debug = cfg.Debug
 			cluster.Status = "running"
 			clustersConfig.AddCluster(clusterName, cluster)
 			clustersConfig.Save("config.yaml")

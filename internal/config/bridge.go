@@ -1,8 +1,8 @@
 package config
 
 import (
-	"github.com/Felipalds/rancher-corral/internal/core"
-	"github.com/Felipalds/rancher-corral/internal/model"
+	"github.com/Felipalds/rancher-saddle/internal/core"
+	"github.com/Felipalds/rancher-saddle/internal/model"
 )
 
 // FromLegacyConfig converts old model.Config to new config.Config

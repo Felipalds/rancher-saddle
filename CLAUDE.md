@@ -1,4 +1,4 @@
-# CLAUDE.md — LLM Instructions for rancher-corral
+# CLAUDE.md — LLM Instructions for rancher-saddle
 
 ## Project Overview
 

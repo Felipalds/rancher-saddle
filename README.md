@@ -34,8 +34,8 @@ Automated deployment tool for Kubernetes clusters (RKE2/K3s) with Rancher on AWS
 ## Installation
 
 ```bash
-git clone https://github.com/Felipalds/rancher-corral.git
-cd rancher-corral
+git clone https://github.com/Felipalds/rancher-saddle.git
+cd rancher-saddle
 go build -o corral
 ```
 

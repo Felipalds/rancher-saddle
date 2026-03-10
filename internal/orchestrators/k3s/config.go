@@ -1,7 +1,7 @@
 package k3s
 
 import (
-	"github.com/Felipalds/rancher-corral/internal/core"
+	"github.com/Felipalds/rancher-saddle/internal/core"
 )
 
 // K3sConfig represents the configuration for K3s orchestrator
@@ -11,6 +11,8 @@ type K3sConfig struct {
 	DeployRancher     bool
 	RancherPrime      bool
 	BootstrapPassword string
+	ImageTag          string
+	Debug             bool
 	InitTasks         string
 	JoinTasks         string
 	AddonTasks        string
@@ -68,6 +70,12 @@ func FromMap(configMap map[string]interface{}) *K3sConfig {
 	}
 	if v, ok := configMap["rancher_bootstrap_password"].(string); ok && v != "" {
 		cfg.BootstrapPassword = v
+	}
+	if v, ok := configMap["rancher_image_tag"].(string); ok {
+		cfg.ImageTag = v
+	}
+	if v, ok := configMap["rancher_debug"].(bool); ok {
+		cfg.Debug = v
 	}
 
 	return cfg

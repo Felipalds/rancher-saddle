@@ -3,7 +3,7 @@ package views
 import (
 	"fmt"
 
-	"github.com/Felipalds/rancher-corral/internal/credentials"
+	"github.com/Felipalds/rancher-saddle/internal/credentials"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"

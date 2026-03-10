@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Felipalds/rancher-corral/internal/generator"
-	"github.com/Felipalds/rancher-corral/internal/model"
-	"github.com/Felipalds/rancher-corral/internal/utils"
+	"github.com/Felipalds/rancher-saddle/internal/generator"
+	"github.com/Felipalds/rancher-saddle/internal/model"
+	"github.com/Felipalds/rancher-saddle/internal/utils"
 	"go.uber.org/zap"
 )
 

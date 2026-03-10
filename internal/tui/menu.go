@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Felipalds/rancher-corral/internal/config"
-	"github.com/Felipalds/rancher-corral/internal/model"
+	"github.com/Felipalds/rancher-saddle/internal/config"
+	"github.com/Felipalds/rancher-saddle/internal/model"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )

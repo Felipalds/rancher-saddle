@@ -2,7 +2,7 @@
 
 ## Vision
 
-rancher-corral automates Kubernetes cluster deployment on cloud infrastructure. It targets engineers who need to quickly spin up RKE2/K3s clusters with Rancher for development, testing, or demos — without manually writing Terraform and Ansible.
+rancher-saddle automates Kubernetes cluster deployment on cloud infrastructure. It targets engineers who need to quickly spin up RKE2/K3s clusters with Rancher for development, testing, or demos — without manually writing Terraform and Ansible.
 
 ## Scope
 
