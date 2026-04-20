@@ -1,4 +1,4 @@
-BINARY := corral
+BINARY := saddle
 COVERFILE := coverage.out
 
 .PHONY: build test test-cover test-verbose lint clean

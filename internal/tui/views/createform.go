@@ -35,6 +35,34 @@ type FormField struct {
 	hidden      bool
 }
 
+// Field indices — kept as constants so the rest of the file stays in sync.
+const (
+	fieldInstallMethod  = 0
+	fieldProvider       = 1
+	fieldCredentials    = 2
+	fieldK8sDistro      = 3
+	fieldClusterName    = 4
+	fieldNodePrefix     = 5
+	fieldRegion         = 6
+	fieldSubnetID       = 7
+	fieldSecurityGroup  = 8
+	fieldOSImage        = 9
+	fieldCustomAMI      = 10
+	fieldInstanceType   = 11
+	fieldInstanceCount  = 12
+	fieldSSHKeyName     = 13
+	fieldSSHKeyPath     = 14
+	fieldSSHUser        = 15
+	fieldK8sVersion     = 16
+	fieldDeployRancher  = 17
+	fieldRancherPrime   = 18
+	fieldRancherVersion = 19
+	fieldBootstrapPwd   = 20
+	fieldImageTag       = 21
+	fieldDebugMode      = 22
+	fieldHostPort       = 23 // Docker-only: custom HTTPS port
+)
+
 // CreateFormModel represents the simplified cluster creation form
 type CreateFormModel struct {
 	width  int
@@ -85,70 +113,77 @@ func (m *CreateFormModel) SetSize(width, height int) {
 
 func (m *CreateFormModel) initFields() {
 	m.fields = []FormField{
-		// Provider selection
+		// [0] Installation Method
+		{
+			fieldType: FieldSelect,
+			label:     "Installation Method",
+			options:   []string{"Local", "Docker"},
+			selected:  0,
+		},
+		// [1] Provider selection
 		{
 			fieldType: FieldSelect,
 			label:     "Provider",
 			options:   []string{"AWS", "Azure (Coming soon)", "GCP (Coming soon)"},
 			selected:  0,
 		},
-		// Credentials selection (will be populated when credentials load)
+		// [2] Credentials selection (will be populated when credentials load)
 		{
-			fieldType:   FieldSelect,
-			label:       "Credentials",
-			options:     []string{"Loading..."},
-			selected:    0,
+			fieldType: FieldSelect,
+			label:     "Credentials",
+			options:   []string{"Loading..."},
+			selected:  0,
 		},
-		// Kubernetes Distribution
+		// [3] Kubernetes Distribution
 		{
 			fieldType: FieldSelect,
 			label:     "Kubernetes Distribution",
 			options:   []string{"RKE2", "K3s"},
 			selected:  0,
 		},
-		// Cluster Name
+		// [4] Cluster Name
 		{
 			fieldType:   FieldText,
 			label:       "Cluster Name",
 			input:       m.createTextInput("my-cluster", 50, 40),
 			placeholder: "my-cluster",
 		},
-		// Node Prefix
+		// [5] Node Prefix
 		{
 			fieldType:   FieldText,
 			label:       "Node Prefix",
 			input:       m.createTextInput("k8s-node", 30, 40),
 			placeholder: "k8s-node",
 		},
-		// Region
+		// [6] Region
 		{
 			fieldType:   FieldText,
 			label:       "Region",
 			input:       m.createTextInput("us-east-1", 20, 40),
 			placeholder: "us-east-1",
 		},
-		// Subnet ID
+		// [7] Subnet ID
 		{
 			fieldType:   FieldText,
 			label:       "Subnet ID",
 			input:       m.createTextInput("subnet-xxxxx", 50, 50),
 			placeholder: "subnet-xxxxx",
 		},
-		// Security Group ID
+		// [8] Security Group ID
 		{
 			fieldType:   FieldText,
 			label:       "Security Group ID",
 			input:       m.createTextInput("sg-xxxxx", 50, 50),
 			placeholder: "sg-xxxxx",
 		},
-		// OS Image (distro picker — resolves to an AMI ID at submit time)
+		// [9] OS Image (distro picker — resolves to an AMI ID at submit time)
 		{
 			fieldType: FieldSelect,
 			label:     "OS Image",
 			options:   []string{"Ubuntu 22.04 LTS", "RHEL 9", "SLES 15 SP5", "Custom"},
 			selected:  0,
 		},
-		// Custom AMI ID (only visible when OS Image == "Custom")
+		// [10] Custom AMI ID (only visible when OS Image == "Custom")
 		{
 			fieldType:   FieldText,
 			label:       "Custom AMI ID",
@@ -156,89 +191,97 @@ func (m *CreateFormModel) initFields() {
 			placeholder: "ami-xxxxx",
 			hidden:      true,
 		},
-		// Instance Type
+		// [11] Instance Type
 		{
 			fieldType:   FieldText,
 			label:       "Instance Type",
 			input:       m.createTextInput("t3.xlarge", 20, 40),
 			placeholder: "t3.xlarge",
 		},
-		// Instance Count
+		// [12] Instance Count
 		{
 			fieldType:   FieldText,
 			label:       "Instance Count",
 			input:       m.createTextInput("3", 2, 10),
 			placeholder: "3",
 		},
-		// SSH Key Name
+		// [13] SSH Key Name
 		{
 			fieldType:   FieldText,
 			label:       "SSH Key Name",
 			input:       m.createTextInput("my-key", 50, 40),
 			placeholder: "my-key",
 		},
-		// SSH Private Key Path
+		// [14] SSH Private Key Path
 		{
 			fieldType:   FieldText,
 			label:       "SSH Private Key Path",
 			input:       m.createTextInput("~/.ssh/my-key.pem", 100, 60),
 			placeholder: "~/.ssh/my-key.pem",
 		},
-		// SSH User
+		// [15] SSH User
 		{
 			fieldType:   FieldText,
 			label:       "SSH User",
 			input:       m.createTextInput("ubuntu", 20, 30),
 			placeholder: "ubuntu",
 		},
-		// K8s Version
+		// [16] K8s Version
 		{
 			fieldType:   FieldText,
 			label:       "K8s Version",
 			input:       m.createTextInput("v1.33.7+rke2r1", 30, 40),
 			placeholder: "v1.33.7+rke2r1",
 		},
-		// Deploy Rancher
+		// [17] Deploy Rancher
 		{
 			fieldType: FieldSelect,
 			label:     "Deploy Rancher",
 			options:   []string{"No", "Yes"},
 			selected:  0,
 		},
-		// Rancher Prime
+		// [18] Rancher Prime
 		{
 			fieldType: FieldSelect,
 			label:     "Rancher Prime",
 			options:   []string{"No", "Yes"},
 			selected:  0,
 		},
-		// Rancher Version
+		// [19] Rancher Version
 		{
 			fieldType:   FieldText,
 			label:       "Rancher Version",
 			input:       m.createTextInput("2.11.7", 20, 30),
 			placeholder: "2.11.7",
 		},
-		// Bootstrap Password
+		// [20] Bootstrap Password
 		{
 			fieldType:   FieldText,
 			label:       "Bootstrap Password",
 			input:       m.createTextInput("admin", 50, 40),
 			placeholder: "admin",
 		},
-		// Image Tag (hotfix)
+		// [21] Image Tag (hotfix)
 		{
 			fieldType:   FieldText,
 			label:       "Image Tag (hotfix)",
 			input:       m.createTextInput("", 60, 50),
 			placeholder: "e.g. v0.0.0-hotfix-abc123.1",
 		},
-		// Debug Mode
+		// [22] Debug Mode
 		{
 			fieldType: FieldSelect,
 			label:     "Debug Mode",
 			options:   []string{"No", "Yes"},
 			selected:  0,
+		},
+		// [23] Host Port (Docker-only)
+		{
+			fieldType:   FieldText,
+			label:       "Host Port (HTTPS)",
+			input:       m.createTextInput("443", 6, 10),
+			placeholder: "443",
+			hidden:      true, // Only visible in Docker mode
 		},
 	}
 
@@ -254,6 +297,34 @@ func (m *CreateFormModel) createTextInput(placeholder string, charLimit int, wid
 	input.CharLimit = charLimit
 	input.Width = width
 	return input
+}
+
+// isDockerMode returns true when the Installation Method is set to Docker.
+func (m *CreateFormModel) isDockerMode() bool {
+	return m.fields[fieldInstallMethod].options[m.fields[fieldInstallMethod].selected] == "Docker"
+}
+
+// syncInstallMethodVisibility shows/hides fields based on the Installation Method.
+// Docker mode still uses cloud infrastructure (AWS) — it only skips K8s distribution
+// and installs Docker + Rancher directly on the EC2 instance.
+func (m *CreateFormModel) syncInstallMethodVisibility() {
+	isDocker := m.isDockerMode()
+
+	// In Docker mode, hide K8s-specific fields only (cloud fields stay visible)
+	m.fields[fieldK8sDistro].hidden = isDocker
+	m.fields[fieldK8sVersion].hidden = isDocker
+	m.fields[fieldDeployRancher].hidden = isDocker // Always true in Docker mode
+
+	// Host Port is only visible in Docker mode
+	m.fields[fieldHostPort].hidden = !isDocker
+
+	// Force instance count to 1 in Docker mode
+	if isDocker {
+		m.fields[fieldInstanceCount].input.SetValue("1")
+	}
+
+	// Always respect Custom AMI visibility
+	m.syncCustomAMIVisibility()
 }
 
 // Update handles messages
@@ -337,8 +408,11 @@ func (m CreateFormModel) Update(msg tea.Msg) (CreateFormModel, tea.Cmd) {
 				if m.fields[m.focusIndex].selected < 0 {
 					m.fields[m.focusIndex].selected = len(m.fields[m.focusIndex].options) - 1
 				}
-				if m.focusIndex == 8 {
+				if m.focusIndex == fieldOSImage {
 					m.syncCustomAMIVisibility()
+				}
+				if m.focusIndex == fieldInstallMethod {
+					m.syncInstallMethodVisibility()
 				}
 				return m, nil
 			}
@@ -351,8 +425,11 @@ func (m CreateFormModel) Update(msg tea.Msg) (CreateFormModel, tea.Cmd) {
 				if m.fields[m.focusIndex].selected >= len(m.fields[m.focusIndex].options) {
 					m.fields[m.focusIndex].selected = 0
 				}
-				if m.focusIndex == 8 {
+				if m.focusIndex == fieldOSImage {
 					m.syncCustomAMIVisibility()
+				}
+				if m.focusIndex == fieldInstallMethod {
+					m.syncInstallMethodVisibility()
 				}
 				return m, nil
 			}
@@ -365,8 +442,8 @@ func (m CreateFormModel) Update(msg tea.Msg) (CreateFormModel, tea.Cmd) {
 		if m.credentials != nil && m.credentials.HasAWSCredentials() {
 			credNames := m.credentials.ListAWSCredentials()
 			if len(credNames) > 0 {
-				m.fields[1].options = credNames
-				m.fields[1].selected = 0
+				m.fields[fieldCredentials].options = credNames
+				m.fields[fieldCredentials].selected = 0
 			}
 		}
 		return m, nil
@@ -391,10 +468,10 @@ func (m CreateFormModel) Update(msg tea.Msg) (CreateFormModel, tea.Cmd) {
 		if m.amis != nil {
 			distros := m.amis.ListDistros()
 			options := append(distros, "Custom")
-			m.fields[8].options = options
+			m.fields[fieldOSImage].options = options
 			// Keep selection in bounds
-			if m.fields[8].selected >= len(options) {
-				m.fields[8].selected = 0
+			if m.fields[fieldOSImage].selected >= len(options) {
+				m.fields[fieldOSImage].selected = 0
 			}
 			m.syncCustomAMIVisibility()
 		}
@@ -412,22 +489,29 @@ func (m CreateFormModel) Update(msg tea.Msg) (CreateFormModel, tea.Cmd) {
 }
 
 func (m CreateFormModel) handleSubmit() (CreateFormModel, tea.Cmd) {
-	// Collect form data (indices updated for new fields)
-	provider := m.fields[0].options[m.fields[0].selected]
-	credential := ""
-	if len(m.fields[1].options) > 0 {
-		credential = m.fields[1].options[m.fields[1].selected]
+	if m.isDockerMode() {
+		return m.handleDockerSubmit()
 	}
-	k8sDistro := m.fields[2].options[m.fields[2].selected]
-	clusterName := m.fields[3].input.Value()
-	nodePrefix := m.fields[4].input.Value()
-	region := m.fields[5].input.Value()
-	subnet := m.fields[6].input.Value()
-	securityGroup := m.fields[7].input.Value()
-	osImageOption := m.fields[8].options[m.fields[8].selected]
+	return m.handleLocalSubmit()
+}
+
+func (m CreateFormModel) handleDockerSubmit() (CreateFormModel, tea.Cmd) {
+	// Docker mode reuses the cloud provider (AWS) but with docker orchestrator.
+	// Collect all cloud/SSH fields the same way as Local, plus Docker-specific fields.
+	provider := m.fields[fieldProvider].options[m.fields[fieldProvider].selected]
+	credential := ""
+	if len(m.fields[fieldCredentials].options) > 0 {
+		credential = m.fields[fieldCredentials].options[m.fields[fieldCredentials].selected]
+	}
+	clusterName := m.fields[fieldClusterName].input.Value()
+	nodePrefix := m.fields[fieldNodePrefix].input.Value()
+	region := m.fields[fieldRegion].input.Value()
+	subnet := m.fields[fieldSubnetID].input.Value()
+	securityGroup := m.fields[fieldSecurityGroup].input.Value()
+	osImageOption := m.fields[fieldOSImage].options[m.fields[fieldOSImage].selected]
 	var ami string
 	if osImageOption == "Custom" {
-		ami = m.fields[9].input.Value()
+		ami = m.fields[fieldCustomAMI].input.Value()
 	} else if m.amis != nil {
 		resolvedRegion := region
 		if resolvedRegion == "" {
@@ -435,42 +519,121 @@ func (m CreateFormModel) handleSubmit() (CreateFormModel, tea.Cmd) {
 		}
 		ami, _ = m.amis.GetAMI(osImageOption, resolvedRegion)
 	}
-	instanceType := m.fields[10].input.Value()
-	instanceCountStr := m.fields[11].input.Value()
-	sshKeyName := m.fields[12].input.Value()
-	sshPrivateKeyPath := m.fields[13].input.Value()
-	sshUser := m.fields[14].input.Value()
-	k8sVersion := m.fields[15].input.Value()
-	deployRancher := m.fields[16].options[m.fields[16].selected] == "Yes"
-	rancherPrime := m.fields[17].options[m.fields[17].selected] == "Yes"
-	rancherVersion := m.fields[18].input.Value()
-	bootstrapPassword := m.fields[19].input.Value()
-	imageTag := m.fields[20].input.Value()
-	debugMode := m.fields[21].options[m.fields[21].selected] == "Yes"
+	instanceType := m.fields[fieldInstanceType].input.Value()
+	sshKeyName := m.fields[fieldSSHKeyName].input.Value()
+	sshPrivateKeyPath := m.fields[fieldSSHKeyPath].input.Value()
+	sshUser := m.fields[fieldSSHUser].input.Value()
+	rancherPrime := m.fields[fieldRancherPrime].options[m.fields[fieldRancherPrime].selected] == "Yes"
+	rancherVersion := m.fields[fieldRancherVersion].input.Value()
+	bootstrapPassword := m.fields[fieldBootstrapPwd].input.Value()
+	imageTag := m.fields[fieldImageTag].input.Value()
+	debugMode := m.fields[fieldDebugMode].options[m.fields[fieldDebugMode].selected] == "Yes"
+	hostPort := m.fields[fieldHostPort].input.Value()
 
 	// Validate required fields
 	if clusterName == "" {
-		// TODO: Show error message
 		return m, nil
 	}
 	if subnet == "" {
-		// TODO: Show error message
 		return m, nil
 	}
 	if securityGroup == "" {
-		// TODO: Show error message
 		return m, nil
 	}
 	if ami == "" {
-		// TODO: Show error message
 		return m, nil
 	}
 	if sshKeyName == "" {
-		// TODO: Show error message
 		return m, nil
 	}
 	if sshPrivateKeyPath == "" {
-		// TODO: Show error message
+		return m, nil
+	}
+
+	// Defaults
+	if nodePrefix == "" {
+		nodePrefix = "rancher-docker"
+	}
+	if region == "" {
+		region = "us-east-1"
+	}
+	if instanceType == "" {
+		instanceType = "t3.medium"
+	}
+	if sshUser == "" {
+		sshUser = "ubuntu"
+	}
+	if rancherVersion == "" {
+		rancherVersion = "2.11.7"
+	}
+	if bootstrapPassword == "" {
+		bootstrapPassword = "admin"
+	}
+	if hostPort == "" {
+		hostPort = "443"
+	}
+
+	// Docker mode: always deploy Rancher, always 1 instance, distribution = "docker"
+	return m, m.createCluster(clusterName, provider, credential, "Docker", "", /*k8sVersion not used*/
+		region, subnet, securityGroup, ami, instanceType, nodePrefix, 1,
+		sshKeyName, sshPrivateKeyPath, sshUser, true, rancherPrime, rancherVersion, bootstrapPassword,
+		imageTag, debugMode)
+}
+
+func (m CreateFormModel) handleLocalSubmit() (CreateFormModel, tea.Cmd) {
+	// Collect form data
+	provider := m.fields[fieldProvider].options[m.fields[fieldProvider].selected]
+	credential := ""
+	if len(m.fields[fieldCredentials].options) > 0 {
+		credential = m.fields[fieldCredentials].options[m.fields[fieldCredentials].selected]
+	}
+	k8sDistro := m.fields[fieldK8sDistro].options[m.fields[fieldK8sDistro].selected]
+	clusterName := m.fields[fieldClusterName].input.Value()
+	nodePrefix := m.fields[fieldNodePrefix].input.Value()
+	region := m.fields[fieldRegion].input.Value()
+	subnet := m.fields[fieldSubnetID].input.Value()
+	securityGroup := m.fields[fieldSecurityGroup].input.Value()
+	osImageOption := m.fields[fieldOSImage].options[m.fields[fieldOSImage].selected]
+	var ami string
+	if osImageOption == "Custom" {
+		ami = m.fields[fieldCustomAMI].input.Value()
+	} else if m.amis != nil {
+		resolvedRegion := region
+		if resolvedRegion == "" {
+			resolvedRegion = "us-east-1"
+		}
+		ami, _ = m.amis.GetAMI(osImageOption, resolvedRegion)
+	}
+	instanceType := m.fields[fieldInstanceType].input.Value()
+	instanceCountStr := m.fields[fieldInstanceCount].input.Value()
+	sshKeyName := m.fields[fieldSSHKeyName].input.Value()
+	sshPrivateKeyPath := m.fields[fieldSSHKeyPath].input.Value()
+	sshUser := m.fields[fieldSSHUser].input.Value()
+	k8sVersion := m.fields[fieldK8sVersion].input.Value()
+	deployRancher := m.fields[fieldDeployRancher].options[m.fields[fieldDeployRancher].selected] == "Yes"
+	rancherPrime := m.fields[fieldRancherPrime].options[m.fields[fieldRancherPrime].selected] == "Yes"
+	rancherVersion := m.fields[fieldRancherVersion].input.Value()
+	bootstrapPassword := m.fields[fieldBootstrapPwd].input.Value()
+	imageTag := m.fields[fieldImageTag].input.Value()
+	debugMode := m.fields[fieldDebugMode].options[m.fields[fieldDebugMode].selected] == "Yes"
+
+	// Validate required fields
+	if clusterName == "" {
+		return m, nil
+	}
+	if subnet == "" {
+		return m, nil
+	}
+	if securityGroup == "" {
+		return m, nil
+	}
+	if ami == "" {
+		return m, nil
+	}
+	if sshKeyName == "" {
+		return m, nil
+	}
+	if sshPrivateKeyPath == "" {
 		return m, nil
 	}
 
@@ -611,14 +774,14 @@ func (m *CreateFormModel) updateFocus() tea.Cmd {
 	return nil
 }
 
-// syncCustomAMIVisibility shows/hides field[9] based on the OS Image selection.
-// "Custom" is always the last option in field[8].
+// syncCustomAMIVisibility shows/hides field[10] based on the OS Image selection.
+// "Custom" is always the last option in field[9].
 func (m *CreateFormModel) syncCustomAMIVisibility() {
-	customIdx := len(m.fields[8].options) - 1
-	isCustom := m.fields[8].selected == customIdx
-	m.fields[9].hidden = !isCustom
-	if m.fields[9].hidden {
-		m.fields[9].input.Blur()
+	customIdx := len(m.fields[fieldOSImage].options) - 1
+	isCustom := m.fields[fieldOSImage].selected == customIdx
+	m.fields[fieldCustomAMI].hidden = !isCustom
+	if m.fields[fieldCustomAMI].hidden {
+		m.fields[fieldCustomAMI].input.Blur()
 	}
 }
 
@@ -718,35 +881,35 @@ func (m *CreateFormModel) loadProfileIntoForm(profileName string) {
 	}
 
 	// Load profile values into form fields
-	m.fields[5].input.SetValue(profile.Region)
-	m.fields[6].input.SetValue(profile.SubnetID)
-	m.fields[7].input.SetValue(profile.SecurityGroupID)
+	m.fields[fieldRegion].input.SetValue(profile.Region)
+	m.fields[fieldSubnetID].input.SetValue(profile.SubnetID)
+	m.fields[fieldSecurityGroup].input.SetValue(profile.SecurityGroupID)
 
 	// Reverse-lookup the AMI to see if it matches a known distro
-	customIdx := len(m.fields[8].options) - 1 // "Custom" is always last
+	customIdx := len(m.fields[fieldOSImage].options) - 1 // "Custom" is always last
 	if m.amis != nil {
 		if distro, found := m.amis.FindDistro(profile.AMI, profile.Region); found {
-			for i, opt := range m.fields[8].options {
+			for i, opt := range m.fields[fieldOSImage].options {
 				if opt == distro {
-					m.fields[8].selected = i
+					m.fields[fieldOSImage].selected = i
 					break
 				}
 			}
-			m.fields[9].input.SetValue("")
+			m.fields[fieldCustomAMI].input.SetValue("")
 		} else {
-			m.fields[8].selected = customIdx
-			m.fields[9].input.SetValue(profile.AMI)
+			m.fields[fieldOSImage].selected = customIdx
+			m.fields[fieldCustomAMI].input.SetValue(profile.AMI)
 		}
 	} else {
-		m.fields[8].selected = customIdx
-		m.fields[9].input.SetValue(profile.AMI)
+		m.fields[fieldOSImage].selected = customIdx
+		m.fields[fieldCustomAMI].input.SetValue(profile.AMI)
 	}
 	m.syncCustomAMIVisibility()
 
-	m.fields[10].input.SetValue(profile.InstanceType)
-	m.fields[12].input.SetValue(profile.SSHKeyName)
-	m.fields[13].input.SetValue(profile.SSHPrivateKeyPath)
-	m.fields[14].input.SetValue(profile.SSHUser)
+	m.fields[fieldInstanceType].input.SetValue(profile.InstanceType)
+	m.fields[fieldSSHKeyName].input.SetValue(profile.SSHKeyName)
+	m.fields[fieldSSHKeyPath].input.SetValue(profile.SSHPrivateKeyPath)
+	m.fields[fieldSSHUser].input.SetValue(profile.SSHUser)
 }
 
 // View renders the form
@@ -797,6 +960,11 @@ func (m CreateFormModel) View() string {
 		}
 
 		content += fieldView + "\n"
+	}
+
+	// Docker mode warning
+	if m.isDockerMode() {
+		content += "\n" + lipgloss.NewStyle().Foreground(lipgloss.Color("214")).Render("  ⚠ Docker install is for dev/test only.") + "\n"
 	}
 
 	// Apply button

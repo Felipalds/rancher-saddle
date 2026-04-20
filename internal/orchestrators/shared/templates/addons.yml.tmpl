@@ -1,0 +1,97 @@
+- name: Install Helm
+  shell: curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 && chmod 700 get_helm.sh && ./get_helm.sh
+  args:
+    creates: /usr/local/bin/helm
+
+- name: Set up kubeconfig for convenience
+  lineinfile:
+    path: /root/.bashrc
+    line: "export KUBECONFIG={{ kubeconfig_path }}"
+
+- name: Ensure .kube directory exists
+  file:
+    path: /root/.kube
+    state: directory
+    mode: '0755'
+
+- name: Make Kubeconfig available
+  copy:
+    src: "{{ kubeconfig_path }}"
+    dest: /root/.kube/config
+    remote_src: yes
+    mode: '0600'
+
+- name: Wait for cluster to be ready
+  command: "{{ kubectl_bin }} --kubeconfig {{ kubeconfig_path }} get nodes"
+  register: result
+  until: result.rc == 0
+  retries: 30
+  delay: 10
+  changed_when: false
+
+- name: Install Cert-Manager
+  command: "{{ kubectl_bin }} --kubeconfig {{ kubeconfig_path }} apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.17.2/cert-manager.yaml"
+
+- name: Wait for Cert-Manager Deployments
+  command: "{{ kubectl_bin }} --kubeconfig {{ kubeconfig_path }} wait --for=condition=Available deployment --all -n cert-manager --timeout=300s"
+  changed_when: false
+
+- name: Wait for Cert-Manager Webhook Service
+  command: "{{ kubectl_bin }} --kubeconfig {{ kubeconfig_path }} get endpoints cert-manager-webhook -n cert-manager -o jsonpath='{.subsets[*].addresses[*].ip}'"
+  register: webhook_endpoints
+  until: webhook_endpoints.stdout != ""
+  retries: 30
+  delay: 10
+  changed_when: false
+
+- name: Wait Additional Time for Webhook Registration
+  pause:
+    seconds: 30
+
+- name: Add Rancher Prime Helm Repo
+  command: /usr/local/bin/helm repo add rancher-prime https://charts.rancher.com/server-charts/prime
+  when: rancher_prime | bool
+
+- name: Add Rancher Latest Helm Repo
+  command: /usr/local/bin/helm repo add rancher-latest https://releases.rancher.com/server-charts/latest
+  when: not (rancher_prime | bool)
+
+- name: Add Jetstack Helm Repo
+  command: /usr/local/bin/helm repo add jetstack https://charts.jetstack.io
+
+- name: Update Helm Repos
+  command: /usr/local/bin/helm repo update
+
+- name: Create Cattle System Namespace
+  command: "{{ kubectl_bin }} --kubeconfig {{ kubeconfig_path }} create namespace cattle-system"
+  ignore_errors: yes
+
+- name: Install or Upgrade Rancher (Prime)
+  command: >
+    /usr/local/bin/helm upgrade --install rancher rancher-prime/rancher
+    --namespace cattle-system
+    --set hostname={{ rancher_hostname }}
+    --set bootstrapPassword={{ bootstrap_password }}
+    --set rancherImage=registry.suse.com/rancher/rancher
+    --set systemDefaultRegistry=registry.suse.com
+    --set replicas=1
+    {% if rancher_image_tag %}--set rancherImageTag={{ rancher_image_tag }}{% endif %}
+    --version {{ rancher_version }}
+    --kubeconfig {{ kubeconfig_path }}
+    --create-namespace
+    {% if rancher_debug | bool %}--debug=true{% endif %}
+  when: rancher_prime | bool
+
+- name: Install or Upgrade Rancher (Latest)
+  command: >
+    /usr/local/bin/helm upgrade --install rancher rancher-latest/rancher
+    --namespace cattle-system
+    --set hostname={{ rancher_hostname }}
+    --set bootstrapPassword={{ bootstrap_password }}
+    --set replicas=1
+    {% if rancher_image_tag %}--set rancherImageTag={{ rancher_image_tag }}{% endif %}
+    --version {{ rancher_version }}
+    --kubeconfig {{ kubeconfig_path }}
+    --create-namespace
+    {% if rancher_debug | bool %}--debug=true{% endif %}
+  when: not (rancher_prime | bool)

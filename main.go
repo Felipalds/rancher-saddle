@@ -9,6 +9,7 @@ import (
 	"github.com/Felipalds/rancher-saddle/internal/config"
 	"github.com/Felipalds/rancher-saddle/internal/core"
 	"github.com/Felipalds/rancher-saddle/internal/model"
+	dockerorch "github.com/Felipalds/rancher-saddle/internal/orchestrators/docker"
 	"github.com/Felipalds/rancher-saddle/internal/orchestrators/k3s"
 	"github.com/Felipalds/rancher-saddle/internal/orchestrators/rke2"
 	"github.com/Felipalds/rancher-saddle/internal/providers/aws"
@@ -22,6 +23,7 @@ func init() {
 	// Register orchestrators
 	core.GlobalRegistry.RegisterOrchestrator(rke2.NewOrchestrator())
 	core.GlobalRegistry.RegisterOrchestrator(k3s.NewOrchestrator())
+	core.GlobalRegistry.RegisterOrchestrator(dockerorch.NewOrchestrator())
 }
 
 func main() {

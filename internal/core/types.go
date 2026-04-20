@@ -20,6 +20,7 @@ type OrchestratorType string
 const (
 	OrchestratorRKE2     OrchestratorType = "rke2"
 	OrchestratorK3s      OrchestratorType = "k3s"
+	OrchestratorDocker   OrchestratorType = "docker"
 	OrchestratorMinikube OrchestratorType = "minikube"
 	OrchestratorKubeadm  OrchestratorType = "kubeadm"
 )

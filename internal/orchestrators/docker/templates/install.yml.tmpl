@@ -1,0 +1,62 @@
+- name: Wait for cloud-init
+  command: cloud-init status --wait
+  changed_when: false
+
+- name: Install Docker via convenience script
+  shell: curl -fsSL https://get.docker.com | sh
+  args:
+    creates: /usr/bin/docker
+
+- name: Ensure Docker is running
+  systemd:
+    name: docker
+    state: started
+    enabled: yes
+
+- name: Wait for Docker to be ready
+  command: docker info
+  register: docker_info
+  until: docker_info.rc == 0
+  retries: 10
+  delay: 5
+  changed_when: false
+
+- name: Run Rancher container (Prime)
+  command: >
+    docker run -d
+    --name rancher
+    --restart=unless-stopped
+    --privileged
+    -p 80:80
+    -p {{ host_port }}:443
+    -v rancher-data:/var/lib/rancher
+    -e CATTLE_BOOTSTRAP_PASSWORD={{ bootstrap_password }}
+    {% if rancher_debug | bool %}-e CATTLE_DEBUG=true{% endif %}
+    -e RANCHER_VERSION_TYPE=prime
+    -e CATTLE_BASE_UI_BRAND=suse
+    registry.suse.com/rancher/rancher:{% if rancher_image_tag %}{{ rancher_image_tag }}{% else %}v{{ rancher_version }}{% endif %}
+  when: rancher_prime | bool
+
+- name: Run Rancher container (Latest)
+  command: >
+    docker run -d
+    --name rancher
+    --restart=unless-stopped
+    --privileged
+    -p 80:80
+    -p {{ host_port }}:443
+    -v rancher-data:/var/lib/rancher
+    -e CATTLE_BOOTSTRAP_PASSWORD={{ bootstrap_password }}
+    {% if rancher_debug | bool %}-e CATTLE_DEBUG=true{% endif %}
+    rancher/rancher:{% if rancher_image_tag %}{{ rancher_image_tag }}{% else %}v{{ rancher_version }}{% endif %}
+  when: not (rancher_prime | bool)
+
+- name: Wait for Rancher to be ready
+  uri:
+    url: "https://127.0.0.1/healthz"
+    validate_certs: no
+    status_code: [200, 401, 302]
+  register: rancher_health
+  until: rancher_health.status is defined and rancher_health.status in [200, 401, 302]
+  retries: 30
+  delay: 10

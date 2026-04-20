@@ -1,0 +1,12 @@
+- name: Deploy Rancher via Docker
+  hosts: init
+  become: yes
+  vars:
+    rancher_version: "{{.RancherVersion}}"
+    rancher_prime: {{.RancherPrime}}
+    bootstrap_password: "{{.BootstrapPassword}}"
+    rancher_image_tag: "{{.ImageTag}}"
+    rancher_debug: {{.Debug}}
+    host_port: "{{.HostPort}}"
+  tasks:
+{{.InstallTasks}}
