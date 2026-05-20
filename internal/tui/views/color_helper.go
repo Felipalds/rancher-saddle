@@ -24,6 +24,8 @@ func statusColor(status string) lipgloss.Color {
 		return lipgloss.Color("39")
 	case "upgrade-failed":
 		return lipgloss.Color("196")
+	case "delete-failed":
+		return lipgloss.Color("196")
 	default:
 		return lipgloss.Color("240")
 	}
@@ -46,6 +48,8 @@ func formatStatus(status string) string {
 		return lipgloss.NewStyle().Foreground(lipgloss.Color("39")).Render("⟳ upgrading")
 	case "upgrade-failed":
 		return lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Render("✗ upgrade-failed")
+	case "delete-failed":
+		return lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Render("✗ delete-failed")
 	default:
 		return lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render("○ " + status)
 	}

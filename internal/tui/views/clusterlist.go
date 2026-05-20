@@ -311,3 +311,20 @@ type clustersLoadedMsg struct {
 func (m ClusterListModel) GetSelectedCluster() (string, bool) {
 	return m.selectedCluster, m.showLogs
 }
+
+// GetCursorClusterError returns the LastError of the cluster currently under the
+// table cursor, or "" if no cluster is selected or it has no error stored.
+func (m ClusterListModel) GetCursorClusterError() string {
+	if len(m.clusterNames) == 0 {
+		return ""
+	}
+	row := m.table.Cursor()
+	if row < 0 || row >= len(m.clusterNames) {
+		return ""
+	}
+	cluster := m.clusters[m.clusterNames[row]]
+	if cluster == nil {
+		return ""
+	}
+	return cluster.LastError
+}

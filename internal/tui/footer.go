@@ -348,6 +348,12 @@ func (f *FooterModel) SetHeight(height int) {
 
 // ViewForState renders the footer with all keybindings for the current state.
 func (f FooterModel) ViewForState(state views.AppState) string {
+	return f.ViewForStateWithError(state, "")
+}
+
+// ViewForStateWithError renders the footer with keybindings plus an optional
+// red error line above them (used to surface e.g. failed-delete reasons).
+func (f FooterModel) ViewForStateWithError(state views.AppState, errMsg string) string {
 	footerStyle := lipgloss.NewStyle().
 		Width(f.width).
 		Background(lipgloss.Color("235")).
@@ -383,7 +389,14 @@ func (f FooterModel) ViewForState(state views.AppState) string {
 		km = clusterListKeys
 	}
 
-	return footerStyle.Render(renderBindings(km))
+	body := renderBindings(km)
+	if errMsg != "" {
+		errStyle := lipgloss.NewStyle().
+			Foreground(lipgloss.Color("196")).
+			Bold(true)
+		body = errStyle.Render("✗ "+errMsg) + "\n" + body
+	}
+	return footerStyle.Render(body)
 }
 
 // renderBindings formats all non-empty bindings from km as a single line.
