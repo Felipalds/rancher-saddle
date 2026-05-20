@@ -237,9 +237,8 @@ func (r *ModularRunner) waitForSSH(ips []string) error {
 			}
 
 			if retry < maxRetries-1 {
-				if retry == 0 {
-					fmt.Printf("  [%d/%d] SSH not ready yet, waiting... (attempt %d/%d)\n", i+1, len(ips), retry+1, maxRetries)
-				}
+				fmt.Printf("  [%d/%d] SSH not ready on %s, retrying in %ds (attempt %d/%d)\n",
+					i+1, len(ips), ip, retryDelay, retry+1, maxRetries)
 				time.Sleep(time.Duration(retryDelay) * time.Second)
 			} else {
 				return fmt.Errorf("SSH not available on %s after %d attempts", ip, maxRetries)
