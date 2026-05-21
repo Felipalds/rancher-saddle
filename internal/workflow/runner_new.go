@@ -211,10 +211,22 @@ func (r *ModularRunner) runCommand(name string, args []string, dir string) error
 	return nil
 }
 
-// waitForSSH waits for SSH to be available on all instances
+// waitForSSH waits for SSH to be available on all instances. Preflights the
+// key file so a missing/typo'd path fails immediately with a clear message
+// instead of after 5 minutes of opaque retries, and surfaces the actual ssh
+// stderr on the first/last attempts so the user can debug auth failures.
 func (r *ModularRunner) waitForSSH(ips []string) error {
 	maxRetries := 30
 	retryDelay := 10
+
+	keyPath, err := config.ExpandPath(r.Config.SSHPrivateKeyPath)
+	if err != nil {
+		return fmt.Errorf("ssh_private_key_path %q: %w", r.Config.SSHPrivateKeyPath, err)
+	}
+	if _, err := os.Stat(keyPath); err != nil {
+		return fmt.Errorf("ssh key not found at %q (expanded from %q): %w",
+			keyPath, r.Config.SSHPrivateKeyPath, err)
+	}
 
 	for i, ip := range ips {
 		fmt.Printf("  [%d/%d] Waiting for SSH on %s...\n", i+1, len(ips), ip)
@@ -225,7 +237,7 @@ func (r *ModularRunner) waitForSSH(ips []string) error {
 				"-o", "UserKnownHostsFile=/dev/null",
 				"-o", "ConnectTimeout=5",
 				"-o", "BatchMode=yes",
-				"-i", r.Config.SSHPrivateKeyPath,
+				"-i", keyPath,
 				fmt.Sprintf("%s@%s", r.Config.SSHUser, ip),
 				"echo 'SSH Ready'",
 			)
@@ -239,15 +251,38 @@ func (r *ModularRunner) waitForSSH(ips []string) error {
 			if retry < maxRetries-1 {
 				fmt.Printf("  [%d/%d] SSH not ready on %s, retrying in %ds (attempt %d/%d)\n",
 					i+1, len(ips), ip, retryDelay, retry+1, maxRetries)
+				// Show the actual ssh output on the first attempt and every 5th
+				// retry so the user can see the underlying reason (wrong user,
+				// missing key, permission denied, etc.) instead of just "not ready".
+				if retry == 0 || retry%5 == 4 {
+					trimmed := strings.TrimSpace(string(output))
+					if trimmed != "" {
+						fmt.Printf("      ssh: %s\n", firstNonEmptyLine(trimmed))
+					}
+				}
 				time.Sleep(time.Duration(retryDelay) * time.Second)
 			} else {
-				return fmt.Errorf("SSH not available on %s after %d attempts", ip, maxRetries)
+				return fmt.Errorf("SSH not available on %s after %d attempts: %s",
+					ip, maxRetries, firstNonEmptyLine(strings.TrimSpace(string(output))))
 			}
 		}
 	}
 
 	fmt.Println("✓ All instances are ready for provisioning")
 	return nil
+}
+
+// firstNonEmptyLine returns the first non-empty line of s, trimmed.
+// Helps keep the SSH-progress output tidy by collapsing OpenSSH's
+// multiline warnings/errors to the most informative line.
+func firstNonEmptyLine(s string) string {
+	for _, line := range strings.Split(s, "\n") {
+		line = strings.TrimSpace(line)
+		if line != "" {
+			return line
+		}
+	}
+	return ""
 }
 
 // displaySuccess displays the success message
