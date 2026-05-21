@@ -1,10 +1,13 @@
 package views
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/Felipalds/rancher-saddle/internal/config"
 	tea "github.com/charmbracelet/bubbletea"
@@ -50,6 +53,7 @@ func (m DeleteModalModel) Update(msg tea.Msg) (DeleteModalModel, tea.Cmd) {
 				if err == nil {
 					if cluster, exists := cfg.GetCluster(clusterName); exists {
 						cluster.Status = "deleting"
+						cluster.LastError = ""
 						cfg.AddCluster(clusterName, cluster)
 						cfg.Save("config.yaml")
 					}
@@ -144,16 +148,22 @@ func destroyCluster(name string) {
 		writeLog("Destroying infrastructure with tofu destroy...")
 		cmd := exec.Command("tofu", "destroy", "-auto-approve")
 		cmd.Dir = buildDir
+
+		// Capture stderr to a buffer so we can surface a short error in the TUI,
+		// while also tee'ing into the log file for the full record.
+		var stderrBuf bytes.Buffer
 		if logFile != nil {
 			cmd.Stdout = logFile
-			cmd.Stderr = logFile
+			cmd.Stderr = io.MultiWriter(logFile, &stderrBuf)
+		} else {
+			cmd.Stderr = &stderrBuf
 		}
 
 		if err := cmd.Run(); err != nil {
+			msg := summarizeDestroyError(err, stderrBuf.String())
 			writeLog(fmt.Sprintf("Warning: tofu destroy failed: %v", err))
 			writeLog("You may need to manually clean up cloud resources.")
-			// Update status to failed instead of removing
-			updateClusterStatus(name, "failed")
+			updateClusterStatusWithError(name, "delete-failed", msg)
 			if logFile != nil {
 				logFile.Close()
 			}
@@ -179,4 +189,57 @@ func destroyCluster(name string) {
 	if logFile != nil {
 		logFile.Close()
 	}
+}
+
+// summarizeDestroyError produces a short, user-facing message from a tofu
+// destroy failure. It special-cases common environment problems (missing or
+// wrong tofu binary) so the TUI shows actionable text instead of a raw stack.
+func summarizeDestroyError(err error, stderr string) string {
+	errStr := err.Error()
+	if strings.Contains(errStr, "executable file not found") {
+		return "OpenTofu binary 'tofu' not found in PATH. Install opentofu and retry."
+	}
+
+	// Known imposter on some Arch systems: a TOTP Manager package ships /usr/bin/tofu.
+	lower := strings.ToLower(stderr)
+	if strings.Contains(lower, "totp manager") {
+		return "'tofu' in PATH is a TOTP Manager, not OpenTofu. Remove the 'tofu' package and install opentofu."
+	}
+
+	trimmed := strings.TrimSpace(stderr)
+	if trimmed != "" {
+		return firstNonEmptyLine(trimmed, 200)
+	}
+	return errStr
+}
+
+// firstNonEmptyLine returns the first non-empty line of s, truncated to max chars.
+func firstNonEmptyLine(s string, max int) string {
+	for _, line := range strings.Split(s, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		if len(line) > max {
+			return line[:max] + "…"
+		}
+		return line
+	}
+	return ""
+}
+
+// updateClusterStatusWithError sets both status and LastError atomically.
+func updateClusterStatusWithError(name, status, errMsg string) {
+	cfg, err := config.LoadClustersConfig("config.yaml")
+	if err != nil {
+		return
+	}
+	cluster, exists := cfg.GetCluster(name)
+	if !exists {
+		return
+	}
+	cluster.Status = status
+	cluster.LastError = errMsg
+	cfg.AddCluster(name, cluster)
+	cfg.Save("config.yaml")
 }

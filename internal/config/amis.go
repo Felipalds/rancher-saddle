@@ -21,48 +21,17 @@ type AMIsConfig struct {
 }
 
 // DefaultAMIs returns the built-in seed table used when amis.yaml does not
-// exist yet. Users can freely edit or extend it afterwards.
+// exist yet. Only us-west-2 entries are seeded; the previous multi-region
+// table was hand-curated and several entries pointed at the wrong OS (e.g.
+// the Ubuntu 22.04 us-west-2 AMI actually launched Amazon Linux). Users
+// can extend this list via the AMIs management screen or by editing
+// amis.yaml directly. See feats/4-dynamic-ami-lookup.md for the planned
+// fix that replaces this static table with Terraform data lookups.
 func DefaultAMIs() *AMIsConfig {
 	entries := []AMIEntry{
-		// Ubuntu 22.04 LTS
-		{Distro: "Ubuntu 22.04 LTS", Region: "us-east-1", AMIID: "ami-0c7217cdde317cfec"},
-		{Distro: "Ubuntu 22.04 LTS", Region: "us-east-2", AMIID: "ami-05fb0b8c1424f266b"},
-		{Distro: "Ubuntu 22.04 LTS", Region: "us-west-1", AMIID: "ami-0ce2cb35386fc22e9"},
-		{Distro: "Ubuntu 22.04 LTS", Region: "us-west-2", AMIID: "ami-0dc8f589abe99f538"},
-		{Distro: "Ubuntu 22.04 LTS", Region: "eu-west-1", AMIID: "ami-0694d931cee176e7d"},
-		{Distro: "Ubuntu 22.04 LTS", Region: "eu-west-2", AMIID: "ami-09744628bed84e434"},
-		{Distro: "Ubuntu 22.04 LTS", Region: "eu-central-1", AMIID: "ami-0faab6bdbac9486fb"},
-		{Distro: "Ubuntu 22.04 LTS", Region: "ap-southeast-1", AMIID: "ami-0df7a207adb9748c7"},
-		{Distro: "Ubuntu 22.04 LTS", Region: "ap-southeast-2", AMIID: "ami-0310483fb2b488153"},
-		{Distro: "Ubuntu 22.04 LTS", Region: "ap-northeast-1", AMIID: "ami-0d52744d6551d851e"},
-		{Distro: "Ubuntu 22.04 LTS", Region: "ap-south-1", AMIID: "ami-0f5ee92e2d63afc18"},
-		{Distro: "Ubuntu 22.04 LTS", Region: "sa-east-1", AMIID: "ami-0fb4cf3a99aa89f08"},
-		// RHEL 9
-		{Distro: "RHEL 9", Region: "us-east-1", AMIID: "ami-0fe630eb857a6ec83"},
-		{Distro: "RHEL 9", Region: "us-east-2", AMIID: "ami-05693d5fe8c807e59"},
-		{Distro: "RHEL 9", Region: "us-west-1", AMIID: "ami-0ff0b5043ca8428f0"},
+		{Distro: "Ubuntu 22.04 LTS", Region: "us-west-2", AMIID: "ami-0640ac12c85f21746"},
 		{Distro: "RHEL 9", Region: "us-west-2", AMIID: "ami-0692f64f10c04c66b"},
-		{Distro: "RHEL 9", Region: "eu-west-1", AMIID: "ami-0b14a9f8c2e72b6f6"},
-		{Distro: "RHEL 9", Region: "eu-west-2", AMIID: "ami-0aab355e1bfa1e72e"},
-		{Distro: "RHEL 9", Region: "eu-central-1", AMIID: "ami-0a4a7676b07ba5162"},
-		{Distro: "RHEL 9", Region: "ap-southeast-1", AMIID: "ami-0bd66fc77d6c8a5e4"},
-		{Distro: "RHEL 9", Region: "ap-southeast-2", AMIID: "ami-0dd6e21a56d8c30f7"},
-		{Distro: "RHEL 9", Region: "ap-northeast-1", AMIID: "ami-0f4539b28a18e3d0b"},
-		{Distro: "RHEL 9", Region: "ap-south-1", AMIID: "ami-02e3b29e59e1c50a9"},
-		{Distro: "RHEL 9", Region: "sa-east-1", AMIID: "ami-0b05ba07e2b99af9e"},
-		// SLES 15 SP5
-		{Distro: "SLES 15 SP5", Region: "us-east-1", AMIID: "ami-01cf5b14e09028ea5"},
-		{Distro: "SLES 15 SP5", Region: "us-east-2", AMIID: "ami-052dc7f41b4c42879"},
-		{Distro: "SLES 15 SP5", Region: "us-west-1", AMIID: "ami-06a98ba76c8aa33d7"},
 		{Distro: "SLES 15 SP5", Region: "us-west-2", AMIID: "ami-026b6f1e7a0e1ba76"},
-		{Distro: "SLES 15 SP5", Region: "eu-west-1", AMIID: "ami-09fd1ed3b26c5d6de"},
-		{Distro: "SLES 15 SP5", Region: "eu-west-2", AMIID: "ami-065cd38073f06e90f"},
-		{Distro: "SLES 15 SP5", Region: "eu-central-1", AMIID: "ami-065e49f3bb57ef0de"},
-		{Distro: "SLES 15 SP5", Region: "ap-southeast-1", AMIID: "ami-06c9e8c5c7c74a32c"},
-		{Distro: "SLES 15 SP5", Region: "ap-southeast-2", AMIID: "ami-01b7b39ef58a4da52"},
-		{Distro: "SLES 15 SP5", Region: "ap-northeast-1", AMIID: "ami-0ee89af7b8a6d1a79"},
-		{Distro: "SLES 15 SP5", Region: "ap-south-1", AMIID: "ami-0e3c41e3be4ce4e00"},
-		{Distro: "SLES 15 SP5", Region: "sa-east-1", AMIID: "ami-087f2af2a2a9be9e8"},
 	}
 	return &AMIsConfig{AMIs: entries}
 }

@@ -28,6 +28,7 @@ type ClusterConfig struct {
 	InstanceIPs   []string        `yaml:"instance_ips,omitempty"`
 	InstanceDNS   []string        `yaml:"instance_dns,omitempty"`
 	RancherURL    string          `yaml:"rancher_url,omitempty"`
+	LastError     string          `yaml:"last_error,omitempty"`
 }
 
 // ProviderSection contains cloud provider configuration

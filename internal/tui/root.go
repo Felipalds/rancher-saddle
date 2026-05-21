@@ -283,7 +283,7 @@ func (m RootModel) View() string {
 			}
 			m.clusterList.SetSize(m.width, fullHeight)
 			content = m.clusterList.View()
-			footer = m.footer.ViewForState(m.state)
+			footer = m.footer.ViewForStateWithError(m.state, m.clusterList.GetCursorClusterError())
 		}
 	case views.StateCreateForm:
 		content = m.createForm.View()
