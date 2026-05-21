@@ -12,7 +12,7 @@ func TestDefaultAMIs(t *testing.T) {
 	cfg := DefaultAMIs()
 
 	assert.True(t, cfg.HasAMIs())
-	assert.Equal(t, 36, len(cfg.AMIs), "should have 36 default entries (3 distros x 12 regions)")
+	assert.Equal(t, 3, len(cfg.AMIs), "should have 3 default entries (3 distros for us-west-2)")
 }
 
 func TestDefaultAMIs_Distros(t *testing.T) {
@@ -29,30 +29,37 @@ func TestAMIsConfig_GetAMI(t *testing.T) {
 	cfg := DefaultAMIs()
 
 	tests := []struct {
-		name    string
-		distro  string
-		region  string
-		wantID  string
-		wantOK  bool
+		name   string
+		distro string
+		region string
+		wantID string
+		wantOK bool
 	}{
 		{
-			name:   "Ubuntu us-east-1",
+			name:   "Ubuntu us-west-2",
+			distro: "Ubuntu 22.04 LTS",
+			region: "us-west-2",
+			wantID: "ami-0640ac12c85f21746",
+			wantOK: true,
+		},
+		{
+			name:   "RHEL us-west-2",
+			distro: "RHEL 9",
+			region: "us-west-2",
+			wantID: "ami-0692f64f10c04c66b",
+			wantOK: true,
+		},
+		{
+			name:   "region without seed",
 			distro: "Ubuntu 22.04 LTS",
 			region: "us-east-1",
-			wantID: "ami-0c7217cdde317cfec",
-			wantOK: true,
+			wantID: "",
+			wantOK: false,
 		},
 		{
-			name:   "RHEL us-east-1",
-			distro: "RHEL 9",
-			region: "us-east-1",
-			wantID: "ami-0fe630eb857a6ec83",
-			wantOK: true,
-		},
-		{
-			name:   "not found",
+			name:   "not found distro",
 			distro: "Fedora",
-			region: "us-east-1",
+			region: "us-west-2",
 			wantID: "",
 			wantOK: false,
 		},
@@ -70,11 +77,11 @@ func TestAMIsConfig_GetAMI(t *testing.T) {
 func TestAMIsConfig_FindDistro(t *testing.T) {
 	cfg := DefaultAMIs()
 
-	distro, ok := cfg.FindDistro("ami-0c7217cdde317cfec", "us-east-1")
+	distro, ok := cfg.FindDistro("ami-0640ac12c85f21746", "us-west-2")
 	assert.True(t, ok)
 	assert.Equal(t, "Ubuntu 22.04 LTS", distro)
 
-	_, ok = cfg.FindDistro("ami-nonexistent", "us-east-1")
+	_, ok = cfg.FindDistro("ami-nonexistent", "us-west-2")
 	assert.False(t, ok)
 }
 
@@ -156,5 +163,5 @@ func TestLoadAMIs_NonexistentCreatesDefault(t *testing.T) {
 
 	cfg, err := LoadAMIs(path)
 	require.NoError(t, err)
-	assert.Equal(t, 36, len(cfg.AMIs), "should create default AMIs when file doesn't exist")
+	assert.Equal(t, 3, len(cfg.AMIs), "should create default AMIs when file doesn't exist")
 }
