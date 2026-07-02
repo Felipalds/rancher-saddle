@@ -9,7 +9,9 @@ import (
 )
 
 // AMIEntry is a single distro→region→AMI-ID mapping row.
+// Name is the metadata.name set when the entry is created via saddle apply -f.
 type AMIEntry struct {
+	Name   string `yaml:"name,omitempty"`
 	Distro string `yaml:"distro"`
 	Region string `yaml:"region"`
 	AMIID  string `yaml:"ami_id"`
@@ -149,6 +151,27 @@ func (c *AMIsConfig) AddEntry(entry AMIEntry) {
 		}
 	}
 	c.AMIs = append(c.AMIs, entry)
+}
+
+// FindByName returns the AMI entry whose Name field matches name.
+func (c *AMIsConfig) FindByName(name string) (AMIEntry, bool) {
+	for _, e := range c.AMIs {
+		if e.Name == name {
+			return e, true
+		}
+	}
+	return AMIEntry{}, false
+}
+
+// DeleteByName removes the entry whose Name field matches name.
+func (c *AMIsConfig) DeleteByName(name string) error {
+	for i, e := range c.AMIs {
+		if e.Name == name {
+			c.AMIs = append(c.AMIs[:i], c.AMIs[i+1:]...)
+			return nil
+		}
+	}
+	return fmt.Errorf("AMI entry with name %q not found", name)
 }
 
 // DeleteEntry removes the entry matching (distro, region).
