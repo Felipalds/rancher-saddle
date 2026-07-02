@@ -2,12 +2,9 @@ package views
 
 import (
 	"fmt"
-	"os"
-	"os/exec"
-	"time"
 
+	"github.com/Felipalds/rancher-saddle/internal/cluster"
 	"github.com/Felipalds/rancher-saddle/internal/config"
-	"github.com/Felipalds/rancher-saddle/internal/upgrade"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -308,193 +305,16 @@ func (m UpgradeFormModel) startUpgrade() tea.Cmd {
 	fmt.Sscanf(replicasStr, "%d", &replicas)
 
 	return func() tea.Msg {
-		// Load cluster config
-		cfg, err := config.LoadClustersConfig("config.yaml")
-		if err != nil {
-			return upgradeFinishedMsg{err: err}
+		opts := cluster.UpgradeOptions{
+			Version:       targetVersion,
+			Replicas:      replicas,
+			AuditLog:      auditLog,
+			AuditLogLevel: auditLogLevel,
+			ImageTag:      imageTag,
+			Debug:         debug,
 		}
-		cluster, exists := cfg.GetCluster(clusterName)
-		if !exists {
-			return upgradeFinishedMsg{err: fmt.Errorf("cluster %q not found", clusterName)}
-		}
-
-		// Set status to upgrading
-		cluster.Status = "upgrading"
-		cfg.AddCluster(clusterName, cluster)
-		cfg.Save("config.yaml")
-
-		hostname := ""
-		if len(cluster.InstanceDNS) > 0 {
-			hostname = cluster.InstanceDNS[0]
-		} else if len(cluster.InstanceIPs) > 0 {
-			hostname = cluster.InstanceIPs[0]
-		}
-
-		initIP := ""
-		if len(cluster.InstanceIPs) > 0 {
-			initIP = cluster.InstanceIPs[0]
-		}
-
-		if cluster.Kubernetes.Distribution == "docker" {
-			// Docker Rancher on cloud: SSH in and run docker stop/rm/run
-			go runDockerUpgrade(clusterName, initIP, cluster.SSH.PrivateKeyPath, cluster.SSH.User,
-				targetVersion, cluster.Rancher.Prime, cluster.Rancher.BootstrapPassword, imageTag, debug)
-		} else {
-			// K8s cluster: upgrade via Ansible/Helm
-			go runUpgrade(clusterName, upgrade.UpgradeConfig{
-				ClusterName:       clusterName,
-				Distribution:      cluster.Kubernetes.Distribution,
-				InitIP:            initIP,
-				SSHPrivateKeyPath: cluster.SSH.PrivateKeyPath,
-				SSHUser:           cluster.SSH.User,
-				Hostname:          hostname,
-				RancherVersion:    targetVersion,
-				BootstrapPassword: cluster.Rancher.BootstrapPassword,
-				Prime:             cluster.Rancher.Prime,
-				Replicas:          replicas,
-				AuditLog:          auditLog,
-				AuditLogLevel:     auditLogLevel,
-				ImageTag:          imageTag,
-				Debug:             debug,
-			})
-		}
-
+		go cluster.UpgradeCluster(clusterName, opts, "config.yaml", nil)
 		return upgradeFinishedMsg{}
-	}
-}
-
-// runUpgrade runs the actual upgrade in a background goroutine.
-func runUpgrade(clusterName string, cfg upgrade.UpgradeConfig) {
-	logPath := fmt.Sprintf("logs/%s-upgrade.log", clusterName)
-	os.MkdirAll("logs", 0755)
-	logFile, _ := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-
-	writeLog := func(message string) {
-		if logFile != nil {
-			fmt.Fprintf(logFile, "[%s] %s\n", time.Now().Format("15:04:05"), message)
-			logFile.Sync()
-		}
-	}
-
-	writeLog(fmt.Sprintf("=== Starting Rancher upgrade for cluster: %s ===", clusterName))
-	writeLog(fmt.Sprintf("Target version: %s, Prime: %v", cfg.RancherVersion, cfg.Prime))
-
-	runner := upgrade.NewRunner(cfg)
-	if err := runner.Run(logFile); err != nil {
-		writeLog(fmt.Sprintf("ERROR: Upgrade failed: %v", err))
-		updateClusterStatus(clusterName, "upgrade-failed")
-		if logFile != nil {
-			logFile.Close()
-		}
-		return
-	}
-
-	writeLog("Upgrade completed successfully!")
-
-	// Update config.yaml with new version and audit log settings
-	clustersConfig, err := config.LoadClustersConfig("config.yaml")
-	if err == nil {
-		if cluster, exists := clustersConfig.GetCluster(clusterName); exists {
-			cluster.Rancher.Version = cfg.RancherVersion
-			cluster.Rancher.AuditLog = cfg.AuditLog
-			cluster.Rancher.AuditLogLevel = cfg.AuditLogLevel
-			cluster.Rancher.ImageTag = cfg.ImageTag
-			cluster.Rancher.Debug = cfg.Debug
-			cluster.Status = "running"
-			clustersConfig.AddCluster(clusterName, cluster)
-			clustersConfig.Save("config.yaml")
-		}
-	}
-
-	if logFile != nil {
-		logFile.Close()
-	}
-}
-
-// runDockerUpgrade handles Rancher upgrade for Docker-based clusters on cloud.
-// It SSHs into the remote host and runs docker stop/rm/run with the new version.
-func runDockerUpgrade(clusterName, initIP, sshKeyPath, sshUser, targetVersion string, prime bool, bootstrapPassword, imageTag string, debug bool) {
-	logPath := fmt.Sprintf("logs/%s-upgrade.log", clusterName)
-	os.MkdirAll("logs", 0755)
-	logFile, _ := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-
-	writeLog := func(message string) {
-		if logFile != nil {
-			fmt.Fprintf(logFile, "[%s] %s\n", time.Now().Format("15:04:05"), message)
-			logFile.Sync()
-		}
-	}
-
-	// Build the new image reference
-	image := "rancher/rancher"
-	if prime {
-		image = "registry.suse.com/rancher/rancher"
-	}
-	tag := "v" + targetVersion
-	if imageTag != "" {
-		tag = imageTag
-	}
-	fullImage := image + ":" + tag
-
-	writeLog(fmt.Sprintf("=== Starting Docker Rancher upgrade for cluster: %s ===", clusterName))
-	writeLog(fmt.Sprintf("Target image: %s", fullImage))
-	writeLog(fmt.Sprintf("Host: %s@%s", sshUser, initIP))
-
-	// Build the remote docker commands
-	dockerCmds := fmt.Sprintf(
-		"docker stop rancher && docker rm rancher && docker run -d --name rancher --restart=unless-stopped --privileged -p 80:80 -p 443:443 -v rancher-data:/var/lib/rancher -e CATTLE_BOOTSTRAP_PASSWORD=%s",
-		bootstrapPassword,
-	)
-	if debug {
-		dockerCmds += " -e CATTLE_DEBUG=true"
-	}
-	if prime {
-		dockerCmds += " -e RANCHER_VERSION_TYPE=prime -e CATTLE_BASE_UI_BRAND=suse"
-	}
-	dockerCmds += " " + fullImage
-
-	// SSH into the remote host and run the upgrade
-	sshArgs := []string{
-		"-o", "StrictHostKeyChecking=no",
-		"-i", sshKeyPath,
-		fmt.Sprintf("%s@%s", sshUser, initIP),
-		dockerCmds,
-	}
-
-	writeLog(fmt.Sprintf("Running SSH command: ssh %s@%s ...", sshUser, initIP))
-
-	cmd := exec.Command("ssh", sshArgs...)
-	if logFile != nil {
-		cmd.Stdout = logFile
-		cmd.Stderr = logFile
-	}
-
-	if err := cmd.Run(); err != nil {
-		writeLog(fmt.Sprintf("ERROR: Upgrade failed: %v", err))
-		updateClusterStatus(clusterName, "upgrade-failed")
-		if logFile != nil {
-			logFile.Close()
-		}
-		return
-	}
-
-	writeLog("Docker Rancher upgrade completed successfully!")
-
-	// Update config.yaml with new version
-	clustersConfig, err := config.LoadClustersConfig("config.yaml")
-	if err == nil {
-		if cluster, exists := clustersConfig.GetCluster(clusterName); exists {
-			cluster.Rancher.Version = targetVersion
-			cluster.Rancher.ImageTag = imageTag
-			cluster.Rancher.Debug = debug
-			cluster.Status = "running"
-			clustersConfig.AddCluster(clusterName, cluster)
-			clustersConfig.Save("config.yaml")
-		}
-	}
-
-	if logFile != nil {
-		logFile.Close()
 	}
 }
 

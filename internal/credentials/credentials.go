@@ -115,6 +115,15 @@ func (c *CloudCredentials) HasAWSCredentials() bool {
 	return len(c.AWS) > 0
 }
 
+// MaskKey returns a partially-masked version of an AWS access key for safe display.
+// Keys of 8 characters or fewer are replaced entirely with "****".
+func MaskKey(key string) string {
+	if len(key) <= 8 {
+		return "****"
+	}
+	return key[:4] + "****" + key[len(key)-4:]
+}
+
 // Validate checks if the credential is valid
 func (a *AWSCredential) Validate() error {
 	if a.Name == "" {

@@ -9,11 +9,12 @@ import (
 
 // CredentialsListModel displays all cloud credentials
 type CredentialsListModel struct {
-	table       table.Model
-	width       int
-	height      int
-	credentials *credentials.CloudCredentials
-	credNames   []string
+	table         table.Model
+	width         int
+	height        int
+	credentials   *credentials.CloudCredentials
+	credNames     []string
+	pendingDelete string // name of credential awaiting delete confirmation
 }
 
 // NewCredentialsListModel creates a new credentials list view
@@ -69,29 +70,39 @@ func (m CredentialsListModel) Update(msg tea.Msg) (CredentialsListModel, tea.Cmd
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
+		// If a delete is pending, only handle confirmation keys.
+		if m.pendingDelete != "" {
+			switch msg.String() {
+			case "y", "enter":
+				name := m.pendingDelete
+				m.pendingDelete = ""
+				return m, m.deleteCredential(name)
+			case "n", "esc":
+				m.pendingDelete = ""
+				return m, nil
+			}
+			return m, nil
+		}
+
 		switch msg.String() {
 		case "n", "c":
-			// Navigate to create credentials form
 			return m, func() tea.Msg {
 				return StateChangeMsg{
 					NewState: StateCredentialsForm,
-					Data:     nil, // nil means create new
+					Data:     nil,
 				}
 			}
 
 		case "d":
-			// Delete selected credential
 			if len(m.credNames) > 0 {
 				selectedRow := m.table.Cursor()
 				if selectedRow < len(m.credNames) {
-					credName := m.credNames[selectedRow]
-					// TODO: Add confirmation modal
-					return m, m.deleteCredential(credName)
+					m.pendingDelete = m.credNames[selectedRow]
+					return m, nil
 				}
 			}
 
 		case "enter":
-			// Edit selected credential
 			if len(m.credNames) > 0 {
 				selectedRow := m.table.Cursor()
 				if selectedRow < len(m.credNames) {
@@ -99,14 +110,13 @@ func (m CredentialsListModel) Update(msg tea.Msg) (CredentialsListModel, tea.Cmd
 					return m, func() tea.Msg {
 						return StateChangeMsg{
 							NewState: StateCredentialsForm,
-							Data:     credName, // Pass name for editing
+							Data:     credName,
 						}
 					}
 				}
 			}
 
 		case "esc":
-			// Go back to cluster list
 			return m, func() tea.Msg {
 				return StateChangeMsg{NewState: StateClusterList}
 			}
@@ -119,7 +129,6 @@ func (m CredentialsListModel) Update(msg tea.Msg) (CredentialsListModel, tea.Cmd
 		return m, nil
 
 	case credentialDeletedMsg:
-		// Reload credentials after deletion
 		return m, m.loadCredentials()
 	}
 
@@ -129,18 +138,55 @@ func (m CredentialsListModel) Update(msg tea.Msg) (CredentialsListModel, tea.Cmd
 
 // View renders the credentials list
 func (m CredentialsListModel) View() string {
-	if m.credentials == nil || len(m.credNames) == 0 {
-		return m.emptyState()
-	}
-
 	titleStyle := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(lipgloss.Color("86")).
 		MarginBottom(1)
 
 	title := titleStyle.Render("Cloud Provider Credentials")
+	tableView := title + "\n" + baseStyle.Render(m.table.View())
 
-	return title + "\n" + baseStyle.Render(m.table.View())
+	if m.credentials == nil || len(m.credNames) == 0 {
+		tableView = m.emptyState()
+	}
+
+	if m.pendingDelete != "" {
+		return m.deleteConfirmView(tableView)
+	}
+
+	return tableView
+}
+
+// deleteConfirmView renders the delete confirmation modal over the table.
+func (m CredentialsListModel) deleteConfirmView(behind string) string {
+	modalStyle := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("196")).
+		Padding(1, 2).
+		Width(50).
+		Background(lipgloss.Color("235"))
+
+	title := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("196")).
+		Render("⚠ Delete Credential")
+
+	message := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("250")).
+		Render("Are you sure you want to delete:\n\n  " + m.pendingDelete + "\n\nThis action cannot be undone.")
+
+	actions := lipgloss.NewStyle().
+		Faint(true).
+		Render("\n[y] Confirm  [n] Cancel")
+
+	modal := modalStyle.Render(title + "\n\n" + message + actions)
+
+	return lipgloss.Place(
+		m.width, m.height,
+		lipgloss.Center, lipgloss.Center,
+		modal,
+		lipgloss.WithWhitespaceBackground(lipgloss.Color("0")),
+	)
 }
 
 // emptyState shows a message when no credentials exist
@@ -151,8 +197,7 @@ func (m CredentialsListModel) emptyState() string {
 		Height(m.height).
 		Align(lipgloss.Center, lipgloss.Center)
 
-	message := "No credentials configured.\n\nPress 'n' to add AWS credentials."
-	return emptyStyle.Render(message)
+	return emptyStyle.Render("No credentials configured.\n\nPress 'n' to add AWS credentials.")
 }
 
 // updateTable refreshes the table rows with current credentials
@@ -165,14 +210,11 @@ func (m *CredentialsListModel) updateTable() {
 			continue
 		}
 
-		// Mask access key for security
-		maskedKey := maskKey(cred.AccessKey)
-
 		rows = append(rows, table.Row{
 			cred.Name,
 			"AWS",
 			cred.DefaultRegion,
-			maskedKey,
+			credentials.MaskKey(cred.AccessKey),
 		})
 	}
 
@@ -216,14 +258,6 @@ func (m CredentialsListModel) deleteCredential(name string) tea.Cmd {
 
 		return credentialDeletedMsg{name: name}
 	}
-}
-
-// maskKey masks an access key for display
-func maskKey(key string) string {
-	if len(key) <= 8 {
-		return "****"
-	}
-	return key[:4] + "****" + key[len(key)-4:]
 }
 
 // Message types

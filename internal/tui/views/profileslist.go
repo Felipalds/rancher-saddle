@@ -9,11 +9,12 @@ import (
 
 // ProfilesListModel displays all saved profiles
 type ProfilesListModel struct {
-	table        table.Model
-	width        int
-	height       int
-	profiles     *config.ProfilesConfig
-	profileNames []string
+	table         table.Model
+	width         int
+	height        int
+	profiles      *config.ProfilesConfig
+	profileNames  []string
+	pendingDelete string // name of profile awaiting delete confirmation
 }
 
 // NewProfilesListModel creates a new profiles list view
@@ -69,43 +70,47 @@ func (m ProfilesListModel) Update(msg tea.Msg) (ProfilesListModel, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
+		// While a deletion is pending, only handle confirmation keys.
+		if m.pendingDelete != "" {
+			switch msg.String() {
+			case "y", "enter":
+				name := m.pendingDelete
+				m.pendingDelete = ""
+				return m, m.deleteProfile(name)
+			case "n", "esc":
+				m.pendingDelete = ""
+				return m, nil
+			}
+			return m, nil
+		}
+
 		switch msg.String() {
 		case "n", "c":
-			// Create new profile
 			return m, func() tea.Msg {
-				return StateChangeMsg{
-					NewState: StateProfilesForm,
-					Data:     nil,
-				}
+				return StateChangeMsg{NewState: StateProfilesForm, Data: nil}
 			}
 
 		case "d":
-			// Delete selected profile
 			if len(m.profileNames) > 0 {
 				selectedRow := m.table.Cursor()
 				if selectedRow < len(m.profileNames) {
-					profileName := m.profileNames[selectedRow]
-					return m, m.deleteProfile(profileName)
+					m.pendingDelete = m.profileNames[selectedRow]
+					return m, nil
 				}
 			}
 
 		case "enter":
-			// Edit selected profile
 			if len(m.profileNames) > 0 {
 				selectedRow := m.table.Cursor()
 				if selectedRow < len(m.profileNames) {
 					profileName := m.profileNames[selectedRow]
 					return m, func() tea.Msg {
-						return StateChangeMsg{
-							NewState: StateProfilesForm,
-							Data:     profileName,
-						}
+						return StateChangeMsg{NewState: StateProfilesForm, Data: profileName}
 					}
 				}
 			}
 
 		case "esc":
-			// Go back to cluster list
 			return m, func() tea.Msg {
 				return StateChangeMsg{NewState: StateClusterList}
 			}
@@ -118,7 +123,6 @@ func (m ProfilesListModel) Update(msg tea.Msg) (ProfilesListModel, tea.Cmd) {
 		return m, nil
 
 	case profileDeletedMsg:
-		// Reload profiles after deletion
 		return m, m.loadProfiles()
 	}
 
@@ -128,18 +132,55 @@ func (m ProfilesListModel) Update(msg tea.Msg) (ProfilesListModel, tea.Cmd) {
 
 // View renders the profiles list
 func (m ProfilesListModel) View() string {
-	if m.profiles == nil || len(m.profileNames) == 0 {
-		return m.emptyState()
-	}
-
 	titleStyle := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(lipgloss.Color("86")).
 		MarginBottom(1)
 
 	title := titleStyle.Render("Configuration Profiles")
+	tableView := title + "\n" + baseStyle.Render(m.table.View())
 
-	return title + "\n" + baseStyle.Render(m.table.View())
+	if m.profiles == nil || len(m.profileNames) == 0 {
+		tableView = m.emptyState()
+	}
+
+	if m.pendingDelete != "" {
+		return m.deleteConfirmView(tableView)
+	}
+
+	return tableView
+}
+
+// deleteConfirmView renders the delete confirmation modal over the table.
+func (m ProfilesListModel) deleteConfirmView(behind string) string {
+	modalStyle := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("196")).
+		Padding(1, 2).
+		Width(50).
+		Background(lipgloss.Color("235"))
+
+	title := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("196")).
+		Render("⚠ Delete Profile")
+
+	message := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("250")).
+		Render("Are you sure you want to delete:\n\n  " + m.pendingDelete + "\n\nThis action cannot be undone.")
+
+	actions := lipgloss.NewStyle().
+		Faint(true).
+		Render("\n[y] Confirm  [n] Cancel")
+
+	modal := modalStyle.Render(title + "\n\n" + message + actions)
+
+	return lipgloss.Place(
+		m.width, m.height,
+		lipgloss.Center, lipgloss.Center,
+		modal,
+		lipgloss.WithWhitespaceBackground(lipgloss.Color("0")),
+	)
 }
 
 // emptyState shows a message when no profiles exist
@@ -150,32 +191,21 @@ func (m ProfilesListModel) emptyState() string {
 		Height(m.height).
 		Align(lipgloss.Center, lipgloss.Center)
 
-	message := "No profiles configured.\n\nPress 'n' to create a default configuration profile."
-	return emptyStyle.Render(message)
+	return emptyStyle.Render("No profiles configured.\n\nPress 'n' to create a default configuration profile.")
 }
 
-// updateTable refreshes the table rows
 func (m *ProfilesListModel) updateTable() {
 	rows := []table.Row{}
-
 	for _, name := range m.profileNames {
 		profile, err := m.profiles.GetProfile(name)
 		if err != nil {
 			continue
 		}
-
-		rows = append(rows, table.Row{
-			name,
-			profile.Region,
-			profile.InstanceType,
-			profile.AMI,
-		})
+		rows = append(rows, table.Row{name, profile.Region, profile.InstanceType, profile.AMI})
 	}
-
 	m.table.SetRows(rows)
 }
 
-// loadProfiles loads profiles from file
 func (m ProfilesListModel) loadProfiles() tea.Cmd {
 	return func() tea.Msg {
 		profiles, err := config.LoadProfiles("profiles.yaml")
@@ -185,31 +215,22 @@ func (m ProfilesListModel) loadProfiles() tea.Cmd {
 				names:    []string{},
 			}
 		}
-
-		names := profiles.ListProfiles()
-		return profilesLoadedMsg{
-			profiles: profiles,
-			names:    names,
-		}
+		return profilesLoadedMsg{profiles: profiles, names: profiles.ListProfiles()}
 	}
 }
 
-// deleteProfile deletes a profile
 func (m ProfilesListModel) deleteProfile(name string) tea.Cmd {
 	return func() tea.Msg {
 		profiles, err := config.LoadProfiles("profiles.yaml")
 		if err != nil {
 			return profileDeletedMsg{err: err}
 		}
-
 		if err := profiles.DeleteProfile(name); err != nil {
 			return profileDeletedMsg{err: err}
 		}
-
 		if err := profiles.Save("profiles.yaml"); err != nil {
 			return profileDeletedMsg{err: err}
 		}
-
 		return profileDeletedMsg{name: name}
 	}
 }
