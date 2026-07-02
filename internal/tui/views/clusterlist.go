@@ -156,13 +156,17 @@ func (m ClusterListModel) Update(msg tea.Msg) (ClusterListModel, tea.Cmd) {
 			}
 
 		case "u":
-			// Upgrade Rancher on selected cluster
+			// Upgrade Rancher on selected cluster. Always swallow `u` so the bubbles
+			// table doesn't interpret it as vim half-page-up and move the cursor.
 			if len(m.clusterNames) > 0 {
 				selectedRow := m.table.Cursor()
 				if selectedRow < len(m.clusterNames) {
 					clusterName := m.clusterNames[selectedRow]
 					cluster := m.clusters[clusterName]
-					if cluster != nil && cluster.Rancher.Deploy && cluster.Status == "running" {
+					// Allow retry from failed states; block only mid-flight ops.
+					inFlight := cluster != nil && (cluster.Status == "creating" ||
+						cluster.Status == "upgrading" || cluster.Status == "deleting")
+					if cluster != nil && cluster.Rancher.Deploy && !inFlight {
 						return m, func() tea.Msg {
 							return StateChangeMsg{
 								NewState: StateUpgradeForm,
@@ -172,6 +176,7 @@ func (m ClusterListModel) Update(msg tea.Msg) (ClusterListModel, tea.Cmd) {
 					}
 				}
 			}
+			return m, nil
 
 		case "r":
 			// Manual refresh

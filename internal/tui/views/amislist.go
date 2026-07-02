@@ -1,6 +1,8 @@
 package views
 
 import (
+	"fmt"
+
 	"github.com/Felipalds/rancher-saddle/internal/config"
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
@@ -9,11 +11,12 @@ import (
 
 // AMIsListModel displays all AMI entries from amis.yaml.
 type AMIsListModel struct {
-	table   table.Model
-	width   int
-	height  int
-	amis    *config.AMIsConfig
-	entries []config.AMIEntry // flat ordered list matching table rows
+	table              table.Model
+	width              int
+	height             int
+	amis               *config.AMIsConfig
+	entries            []config.AMIEntry   // flat ordered list matching table rows
+	pendingDeleteEntry config.AMIEntry     // zero value = no pending delete
 }
 
 // NewAMIsListModel creates a new AMI list view.
@@ -62,12 +65,31 @@ func (m *AMIsListModel) SetSize(width, height int) {
 	m.table.SetWidth(width - 4)
 }
 
+// hasPendingDelete returns true when an entry is awaiting delete confirmation.
+func (m AMIsListModel) hasPendingDelete() bool {
+	return m.pendingDeleteEntry.Distro != ""
+}
+
 // Update handles messages.
 func (m AMIsListModel) Update(msg tea.Msg) (AMIsListModel, tea.Cmd) {
 	var cmd tea.Cmd
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
+		// While a deletion is pending, only handle confirmation keys.
+		if m.hasPendingDelete() {
+			switch msg.String() {
+			case "y", "enter":
+				e := m.pendingDeleteEntry
+				m.pendingDeleteEntry = config.AMIEntry{}
+				return m, m.deleteEntry(e.Distro, e.Region)
+			case "n", "esc":
+				m.pendingDeleteEntry = config.AMIEntry{}
+				return m, nil
+			}
+			return m, nil
+		}
+
 		switch msg.String() {
 		case "n", "c":
 			return m, func() tea.Msg {
@@ -92,8 +114,8 @@ func (m AMIsListModel) Update(msg tea.Msg) (AMIsListModel, tea.Cmd) {
 			if len(m.entries) > 0 {
 				row := m.table.Cursor()
 				if row < len(m.entries) {
-					e := m.entries[row]
-					return m, m.deleteEntry(e.Distro, e.Region)
+					m.pendingDeleteEntry = m.entries[row]
+					return m, nil
 				}
 			}
 
@@ -119,28 +141,64 @@ func (m AMIsListModel) Update(msg tea.Msg) (AMIsListModel, tea.Cmd) {
 
 // View renders the AMI list.
 func (m AMIsListModel) View() string {
-	if m.amis == nil || len(m.entries) == 0 {
-		return m.emptyState()
-	}
-
-	titleStyle := lipgloss.NewStyle().
+	title := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(lipgloss.Color("86")).
-		MarginBottom(1)
+		MarginBottom(1).
+		Render("AMI Catalog  (amis.yaml)")
 
-	title := titleStyle.Render("AMI Catalog  (amis.yaml)")
+	tableView := title + "\n" + baseStyle.Render(m.table.View())
+	if m.amis == nil || len(m.entries) == 0 {
+		tableView = m.emptyState()
+	}
 
-	return title + "\n" + baseStyle.Render(m.table.View())
+	if m.hasPendingDelete() {
+		return m.deleteConfirmView(tableView)
+	}
+
+	return tableView
+}
+
+// deleteConfirmView renders the delete confirmation modal over the table.
+func (m AMIsListModel) deleteConfirmView(behind string) string {
+	modalStyle := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("196")).
+		Padding(1, 2).
+		Width(54).
+		Background(lipgloss.Color("235"))
+
+	title := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("196")).
+		Render("⚠ Delete AMI Entry")
+
+	label := fmt.Sprintf("%s / %s", m.pendingDeleteEntry.Distro, m.pendingDeleteEntry.Region)
+	message := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("250")).
+		Render("Are you sure you want to delete:\n\n  " + label + "\n\nThis action cannot be undone.")
+
+	actions := lipgloss.NewStyle().
+		Faint(true).
+		Render("\n[y] Confirm  [n] Cancel")
+
+	modal := modalStyle.Render(title + "\n\n" + message + actions)
+
+	return lipgloss.Place(
+		m.width, m.height,
+		lipgloss.Center, lipgloss.Center,
+		modal,
+		lipgloss.WithWhitespaceBackground(lipgloss.Color("0")),
+	)
 }
 
 func (m AMIsListModel) emptyState() string {
-	emptyStyle := lipgloss.NewStyle().
+	return lipgloss.NewStyle().
 		Foreground(lipgloss.Color("240")).
 		Width(m.width).
 		Height(m.height).
-		Align(lipgloss.Center, lipgloss.Center)
-
-	return emptyStyle.Render("No AMI entries found.\n\nPress 'n' to add a new entry.")
+		Align(lipgloss.Center, lipgloss.Center).
+		Render("No AMI entries found.\n\nPress 'n' to add a new entry.")
 }
 
 func (m *AMIsListModel) updateTable() {
@@ -155,10 +213,7 @@ func (m AMIsListModel) loadAMIs() tea.Cmd {
 	return func() tea.Msg {
 		amis, err := config.LoadAMIs("amis.yaml")
 		if err != nil {
-			return amisLoadedMsg{
-				amis:    &config.AMIsConfig{},
-				entries: nil,
-			}
+			return amisLoadedMsg{amis: &config.AMIsConfig{}, entries: nil}
 		}
 		return amisLoadedMsg{amis: amis, entries: amis.AMIs}
 	}

@@ -2,6 +2,7 @@ package upgrade
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -86,8 +87,8 @@ func (r *Runner) templateData() templateData {
 }
 
 // Run renders the Ansible templates and executes the upgrade playbook.
-// logFile, if non-nil, receives all ansible-playbook stdout/stderr.
-func (r *Runner) Run(logFile *os.File) error {
+// out, if non-nil, receives all ansible-playbook stdout/stderr.
+func (r *Runner) Run(out io.Writer) error {
 	workDir := filepath.Join("clusters", r.Config.ClusterName, "upgrade")
 	if err := os.MkdirAll(workDir, 0755); err != nil {
 		return fmt.Errorf("failed to create upgrade work dir: %w", err)
@@ -113,9 +114,9 @@ func (r *Runner) Run(logFile *os.File) error {
 	// Run ansible-playbook
 	cmd := exec.Command("ansible-playbook", "-i", "hosts.ini", "upgrade.yml")
 	cmd.Dir = workDir
-	if logFile != nil {
-		cmd.Stdout = logFile
-		cmd.Stderr = logFile
+	if out != nil {
+		cmd.Stdout = out
+		cmd.Stderr = out
 	}
 
 	if err := cmd.Run(); err != nil {
