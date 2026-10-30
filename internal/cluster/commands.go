@@ -221,7 +221,7 @@ func DeleteCluster(name string, force bool) error {
 		buildDir = filepath.Join("clusters", name)
 	}
 
-	if cluster.Provider.Type == string(core.ProviderLibvirt) || cluster.Provider.Type == "vagrant" {
+	if cluster.Provider.Type == string(core.ProviderLibvirt) {
 		fmt.Println("Tearing down libvirt VMs, network and disks...")
 		if err := libvirt.Teardown(context.Background(), name, buildDir, os.Stdout); err != nil {
 			fmt.Printf("Warning: libvirt teardown reported: %v\n", err)

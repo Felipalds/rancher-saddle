@@ -70,7 +70,7 @@ func (r *ModularRunner) RunWithBuildDir(buildDir string) error {
 	providerConfig := r.mergeProviderConfig()
 
 	// Preflight: validate provider prerequisites/config before doing any work,
-	// so missing tooling (e.g. vagrant/libvirt) fails fast with a clear message.
+	// so missing tooling (e.g. libvirt) fails fast with a clear message.
 	if err := r.Provider.Validate(providerConfig); err != nil {
 		return fmt.Errorf("provider validation failed: %w", err)
 	}
@@ -187,7 +187,7 @@ func (r *ModularRunner) runCustomApply(ctx context.Context, provider core.Provid
 		return fmt.Errorf("failed to generate inventory: %w", err)
 	}
 
-	// Hand the apply phase to the provider (two-phase vagrant boot + PXE install).
+	// Hand the apply phase to the provider (two-phase libvirt boot + PXE install).
 	fmt.Printf("Applying %s infrastructure (this may take a while)...\n", r.Provider.Name())
 	outputs, err := provider.CustomApply(ctx, providerConfig, buildDir, os.Stdout)
 	if err != nil {

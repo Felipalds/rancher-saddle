@@ -147,8 +147,7 @@ func destroyCluster(name string) {
 	}
 
 	// Local libvirt clusters are torn down with virsh, not OpenTofu.
-	// "vagrant" is the legacy id for clusters created before the libvirt rename.
-	if cluster.Provider.Type == string(core.ProviderLibvirt) || cluster.Provider.Type == "vagrant" {
+	if cluster.Provider.Type == string(core.ProviderLibvirt) {
 		writeLog("Tearing down libvirt VMs, network and disks...")
 		var w io.Writer = io.Discard
 		if logFile != nil {

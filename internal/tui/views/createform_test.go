@@ -18,13 +18,13 @@ func providerOptionIndex(m *CreateFormModel, substr string) int {
 	return -1
 }
 
-func TestCreateForm_CredentialsHiddenForVagrant(t *testing.T) {
+func TestCreateForm_CredentialsHiddenForLibvirt(t *testing.T) {
 	m := NewCreateFormModel()
 
 	awsIdx := providerOptionIndex(&m, "AWS")
-	vagrantIdx := providerOptionIndex(&m, "libvirt")
+	libvirtIdx := providerOptionIndex(&m, "libvirt")
 	assert.GreaterOrEqual(t, awsIdx, 0, "AWS provider option must exist")
-	assert.GreaterOrEqual(t, vagrantIdx, 0, "Vagrant provider option must exist")
+	assert.GreaterOrEqual(t, libvirtIdx, 0, "Libvirt provider option must exist")
 
 	tests := []struct {
 		name       string
@@ -32,7 +32,7 @@ func TestCreateForm_CredentialsHiddenForVagrant(t *testing.T) {
 		wantHidden bool
 	}{
 		{"AWS keeps credentials visible", awsIdx, false},
-		{"Vagrant hides credentials", vagrantIdx, true},
+		{"Libvirt hides credentials", libvirtIdx, true},
 	}
 
 	for _, tt := range tests {
@@ -47,19 +47,19 @@ func TestCreateForm_CredentialsHiddenForVagrant(t *testing.T) {
 func TestCreateForm_DefaultProviderShowsCredentials(t *testing.T) {
 	// Default selection is AWS, so Credentials must be visible out of the box.
 	m := NewCreateFormModel()
-	assert.False(t, m.isLocalProvider(), "default provider should not be Vagrant")
+	assert.False(t, m.isLocalProvider(), "default provider should not be Libvirt")
 	assert.False(t, m.fields[fieldCredentials].hidden, "credentials visible by default")
 }
 
-func TestCreateForm_VagrantHidesAWSFields(t *testing.T) {
+func TestCreateForm_LibvirtHidesAWSFields(t *testing.T) {
 	m := NewCreateFormModel()
 	m.fields[fieldProvider].selected = providerOptionIndex(&m, "libvirt")
 	m.syncProviderVisibility()
 
 	for _, idx := range awsOnlyFields {
-		assert.True(t, m.fields[idx].hidden, "field %d must be hidden for Vagrant", idx)
+		assert.True(t, m.fields[idx].hidden, "field %d must be hidden for Libvirt", idx)
 	}
-	assert.True(t, m.fields[fieldInstallMethod].hidden, "install method hidden for Vagrant")
+	assert.True(t, m.fields[fieldInstallMethod].hidden, "install method hidden for Libvirt")
 	// Cluster name / node prefix / count stay visible.
 	assert.False(t, m.fields[fieldClusterName].hidden)
 	assert.False(t, m.fields[fieldNodePrefix].hidden)
@@ -68,7 +68,7 @@ func TestCreateForm_VagrantHidesAWSFields(t *testing.T) {
 
 func TestCreateForm_AWSRestoresFields(t *testing.T) {
 	m := NewCreateFormModel()
-	// Go to Vagrant then back to AWS.
+	// Go to Libvirt then back to AWS.
 	m.fields[fieldProvider].selected = providerOptionIndex(&m, "libvirt")
 	m.syncProviderVisibility()
 	m.fields[fieldProvider].selected = providerOptionIndex(&m, "AWS")
@@ -82,28 +82,28 @@ func TestCreateForm_AWSRestoresFields(t *testing.T) {
 func TestCreateForm_CoupleProviderAndDistro(t *testing.T) {
 	m := NewCreateFormModel()
 
-	// Selecting Vagrant forces distro to Harvester.
+	// Selecting Libvirt forces distro to Harvester.
 	m.fields[fieldProvider].selected = providerOptionIndex(&m, "libvirt")
 	m.coupleProviderAndDistro(fieldProvider)
-	assert.True(t, m.isHarvesterDistro(), "Vagrant should force Harvester distro")
+	assert.True(t, m.isHarvesterDistro(), "Libvirt should force Harvester distro")
 
 	// Switching distro back to RKE2 forces provider to AWS.
 	m.selectOption(fieldK8sDistro, "RKE2")
 	m.coupleProviderAndDistro(fieldK8sDistro)
 	assert.False(t, m.isLocalProvider(), "RKE2 should force AWS provider")
 
-	// Selecting Harvester forces provider to Vagrant.
+	// Selecting Harvester forces provider to Libvirt.
 	m.selectOption(fieldK8sDistro, "Harvester")
 	m.coupleProviderAndDistro(fieldK8sDistro)
-	assert.True(t, m.isLocalProvider(), "Harvester should force Vagrant provider")
+	assert.True(t, m.isLocalProvider(), "Harvester should force Libvirt provider")
 }
 
-func TestCreateForm_IsVagrantProvider(t *testing.T) {
+func TestCreateForm_IsLibvirtProvider(t *testing.T) {
 	m := NewCreateFormModel()
-	vagrantIdx := providerOptionIndex(&m, "libvirt")
-	assert.GreaterOrEqual(t, vagrantIdx, 0)
+	libvirtIdx := providerOptionIndex(&m, "libvirt")
+	assert.GreaterOrEqual(t, libvirtIdx, 0)
 
-	m.fields[fieldProvider].selected = vagrantIdx
+	m.fields[fieldProvider].selected = libvirtIdx
 	assert.True(t, m.isLocalProvider())
 
 	awsIdx := providerOptionIndex(&m, "AWS")

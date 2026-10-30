@@ -11,7 +11,7 @@ import (
 const BackendLibvirt = "libvirt"
 
 // Defaults for a local Harvester lab. These mirror the sizing used by
-// harvester/ipxe-examples (vagrant-pxe-harvester).
+// harvester/ipxe-examples.
 const (
 	defaultNodeCount        = 3
 	defaultNodeCPU          = 8
